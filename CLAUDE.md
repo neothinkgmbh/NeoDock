@@ -49,3 +49,12 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
 ## Git
 
 Nach jeder funktionierenden Änderung committen; die Nachricht sagt, was man jetzt kann.
+
+## Veröffentlichung (GitHub)
+
+- Öffentliches Repo: `github.com/neothinkgmbh/NeoDock` (Zweig `main`). Es wird NUR aus dem lokalen Zweig `public`
+  gespeist; die Entwicklungshistorie (`feat/…`, mit privater Mail) wird nie gepusht.
+- Update: auf `public` die geänderten Dateien vom Arbeitszweig übernehmen, dann committen mit
+  `GIT_AUTHOR_NAME="neothink GmbH" GIT_AUTHOR_EMAIL="290958107+neothinkgmbh@users.noreply.github.com"` (dasselbe für
+  `GIT_COMMITTER_*`) und `git push https://github.com/neothinkgmbh/NeoDock.git public:main`.
+- Vor jedem Push prüfen: keine Mail, keine Home-Pfade, keine internen Notizen (`git grep` auf `public`).

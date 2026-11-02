@@ -4,7 +4,7 @@
 
 A Liquid Glass dock for macOS with widgets next to your apps — and a live view of your **Claude Code** and **Codex** agent sessions.
 
-<!-- Screenshot: docs/screenshot.png -->
+![NeoDock on macOS Tahoe: apps, agent sessions widget, calendar widget, folder stacks and Trash](docs/screenshot.png)
 
 ## Features
 
