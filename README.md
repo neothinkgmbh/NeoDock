@@ -16,7 +16,7 @@ A Liquid Glass dock for macOS with widgets next to your apps — and a live view
 - Right-click menus like the system Dock, optional auto-hide, scales down on small screens
 
 **Widgets** (click = quick action, press and hold = card)
-- **Agent sessions** — Claude Code and Codex sessions on this Mac: working, waiting for you, ready. Click jumps to the session that needs you.
+- **Agent sessions** — Claude Code (terminal, VS Code, Claude app Code and Cowork) and Codex sessions on this Mac: working, waiting for you, ready. Click jumps to the session that needs you.
 - Focus timer, Up Next (Calendar), Calculator, Clipboard history, Color picker, Password generator, Note, Volume, Storage, Keep awake, Battery, Clock
 - Choose, reorder and size widgets in Settings; widget pages when there are many
 

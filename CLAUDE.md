@@ -11,6 +11,9 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   - `ClaudeSessionSource` liest `~/.claude/sessions/<pid>.json` (status busy|idle|waiting|shell), Lebendprobe kill(pid,0).
   - `CodexSessionSource` liest `~/.codex/state_5.sqlite` (nur lesend, Tabelle `threads`, letzte 3 h, ohne Archiv/Subagenten),
     Zustand aus dem Schwanz der Rollout-Datei (`CodexRollout`: task_started/task_complete, offene `request_user_input`).
+  - `ClaudeDesktopSessionSource` Sitzungen der Claude-Desktop-App (Code-Bereich, Agentenmodus/Cowork) aus
+    `~/Library/Application Support/Claude/{claude-code-sessions,local-agent-mode-sessions}/<konto>/<org>/local_*.json`.
+    Normale Chats liegen nicht lokal.
   - `Magnification` Dock-Vergrößerung (Kosinus-Glocke + Verschiebung der Nachbarn).
 - `Sources/NeoDock/` die App:
   - `Dock/DockPanel.swift` Panel (rahmenlos, nicht aktivierend, Ebene über dem Systemdock, alle Spaces) + `DockController`.

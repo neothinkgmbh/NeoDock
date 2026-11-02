@@ -25,6 +25,9 @@ enum SessionJumper {
     static func hostAppURL(for session: AgentSession) -> URL? {
         switch session.tool {
         case .claude:
+            if session.origin?.hasPrefix("claude-desktop") == true {
+                return NSWorkspace.shared.urlForApplication(withBundleIdentifier: ToolIcons.claudeAppID)
+            }
             return session.pid.flatMap(ProcessTree.owningApp(of:))?.bundleURL
         case .codex:
             switch CodexHost(rawValue: session.origin ?? "") {

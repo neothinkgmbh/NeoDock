@@ -71,7 +71,9 @@ struct ToolCountBadge: View {
 extension AgentSession {
     /// Claude: der Projektordner ist aussagekräftiger als der Sitzungsname (im Home-Ordner der Name).
     /// Codex: der Thread-Name — Desktop-Threads liegen in automatisch benannten Ordnern.
-    var displayName: String { tool == .codex || project == "~" ? name : project }
+    var displayName: String {
+        tool == .codex || project == "~" || origin?.hasPrefix("claude-desktop") == true ? name : project
+    }
 }
 
 struct SessionsCard: View {
@@ -139,10 +141,18 @@ struct SessionRow: View {
     }
 
     private var subtitle: String {
+        let label: String = switch session.origin {
+        case ClaudeDesktopSessionSource.codeOrigin?: "Claude-App · Code"
+        case ClaudeDesktopSessionSource.coworkOrigin?: "Claude-App · Cowork"
+        default: session.tool.label
+        }
+        let isDesktop = session.origin?.hasPrefix("claude-desktop") == true
         let secondary: String? = switch session.tool {
-        case .claude: session.project == "~" ? nil : session.name
+        // Cowork arbeitet in einem internen Ordner der App („outputs“) — der sagt nichts aus.
+        case .claude: isDesktop ? (session.origin == ClaudeDesktopSessionSource.codeOrigin ? session.project : nil)
+                                : (session.project == "~" ? nil : session.name)
         case .codex: session.origin == CodexHost.cli.rawValue ? session.project : nil
         }
-        return [session.tool.label, secondary, session.detail ?? session.state.label].compactMap { $0 }.joined(separator: " · ")
+        return [label, secondary, session.detail ?? session.state.label].compactMap { $0 }.joined(separator: " · ")
     }
 }

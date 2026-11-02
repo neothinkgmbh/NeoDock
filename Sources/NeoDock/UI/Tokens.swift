@@ -19,6 +19,8 @@ nonisolated enum DockMetrics {
     static let minWidgetScale: CGFloat = 0.6
     static let tileValueSize: CGFloat = 15
     static let tileCaptionSize: CGFloat = 10
+    /// „Nur Symbole“: Gesicht etwas größer in der quadratischen Kachel.
+    static let iconOnlyFaceScale: CGFloat = 1.25
     static let maxScreenShare: CGFloat = 0.94
     static let iconSpacing: CGFloat = 8
     static let reachInIcons: Double = 3

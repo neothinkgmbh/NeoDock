@@ -15,6 +15,9 @@ struct RingFace: View {
     let progress: Double
     let tint: Color
     let symbol: String
+    /// Kurzwert im Ring (z. B. Restminuten, Prozent) — nur bei „Nur Symbole“, sonst das Symbol.
+    var label: String?
+    @Environment(\.widgetStyle) private var style
 
     var body: some View {
         ZStack {
@@ -24,9 +27,18 @@ struct RingFace: View {
                 .stroke(tint, style: StrokeStyle(lineWidth: FaceMetrics.ring, lineCap: .round))
                 .rotationEffect(.degrees(-90))
                 .animation(.easeOut(duration: 0.4), value: progress)
-            Image(systemName: symbol)
-                .font(.system(size: FaceMetrics.glyph * 0.8, weight: .bold))
-                .foregroundStyle(tint)
+            if style == .iconOnly, let label {
+                Text(label)
+                    .font(.system(size: FaceMetrics.glyph * 0.72, weight: .bold).monospacedDigit())
+                    .foregroundStyle(tint)
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                    .padding(.horizontal, FaceMetrics.ring)
+            } else {
+                Image(systemName: symbol)
+                    .font(.system(size: FaceMetrics.glyph * 0.8, weight: .bold))
+                    .foregroundStyle(tint)
+            }
         }
         .padding(FaceMetrics.ring / 2)
         .frame(width: FaceMetrics.size, height: FaceMetrics.size)

@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import NeoDockKit
 import Observation
@@ -30,6 +31,7 @@ final class SessionStore {
 
     func refresh() async {
         let runningHosts = Set([CodexHost.desktop, .vscode].filter(CodexHosts.isRunning))
+        let claudeAppRunning = !NSRunningApplication.runningApplications(withBundleIdentifier: ToolIcons.claudeAppID).isEmpty
         let showClaude = settings.showClaude, showCodex = settings.showCodex
         let hours = Self.codexWindowOverride ?? settings.codexHours
         let fresh = await Task.detached(priority: .utility) {
@@ -40,7 +42,12 @@ final class SessionStore {
                 codex = Self.liveCodex(source.sessions(), runningHosts: runningHosts)
             }
             let claude = showClaude ? ClaudeSessionSource().sessions() : []
-            return (claude + codex).sortedByUrgency()
+            // Sitzungen der Claude-Desktop-App (Code-Bereich, Agentenmodus) — ohne die, die schon
+            // als Claude-Code-Sitzung in der Registry stehen.
+            let desktop = showClaude
+                ? Self.desktopSource.sessions(isAppRunning: claudeAppRunning, knownCliIDs: Set(claude.map(\.id)))
+                : []
+            return (claude + desktop + codex).sortedByUrgency()
         }.value
         if fresh != sessions { sessions = fresh }
     }
@@ -49,6 +56,15 @@ final class SessionStore {
     /// codex-Prozess am Terminal im selben Ordner, App-Threads eine laufende Codex-/VS-Code-App.
     /// Prüfschalter: NEODOCK_CODEX_HOURS=<h> überschreibt das Codex-Zeitfenster der Einstellungen.
     nonisolated static let codexWindowOverride = ProcessInfo.processInfo.environment["NEODOCK_CODEX_HOURS"].flatMap(Double.init)
+
+    /// Prüfschalter NEODOCK_DESKTOP_HOURS=<h>: Zeitfenster für Sitzungen der Claude-Desktop-App.
+    nonisolated static let desktopSource: ClaudeDesktopSessionSource = {
+        var source = ClaudeDesktopSessionSource()
+        if let hours = ProcessInfo.processInfo.environment["NEODOCK_DESKTOP_HOURS"].flatMap(Double.init) {
+            source.visibleWindow = hours * 3600
+        }
+        return source
+    }()
 
     nonisolated static func liveCodex(_ sessions: [AgentSession], runningHosts: Set<CodexHost>) -> [AgentSession] {
         let cliFolders = Set(ProcessTable.codexCLIs().compactMap(\.cwd))

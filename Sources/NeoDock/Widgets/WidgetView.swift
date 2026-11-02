@@ -24,7 +24,8 @@ struct WidgetView: View {
             WidgetTile(caption: focus.justFinished ? "fertig ✓" : focus.timer.isRunning ? "Fokus läuft" : "Fokus",
                        tap: focus.toggle, hold: open(.focus),
                        face: AnyView(RingFace(progress: focus.remaining / max(1, focus.timer.duration), tint: .accentColor,
-                                              symbol: focus.timer.isRunning ? "pause.fill" : "play.fill")),
+                                              symbol: focus.timer.isRunning ? "pause.fill" : "play.fill",
+                                              label: "\(Int((focus.remaining / 60).rounded(.up)))")),
                        tint: .accentColor, isActive: focus.timer.isRunning) {
                 Text(FocusTimer.label(focus.remaining))
                     .foregroundStyle(focus.timer.isRunning ? AnyShapeStyle(.tint) : AnyShapeStyle(.primary))
@@ -63,7 +64,8 @@ struct WidgetView: View {
             let volume = model.volume
             WidgetTile(caption: "Lautsprecher", tap: volume.toggleMute, hold: open(.volume),
                        face: AnyView(RingFace(progress: volume.isMuted ? 0 : Double(volume.volume), tint: .blue,
-                                              symbol: volume.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")),
+                                              symbol: volume.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill",
+                                              label: volume.isMuted ? nil : "\(Int((volume.volume * 100).rounded()))")),
                        tint: .blue) {
                 Text(volume.isMuted ? "stumm" : "\(Int((volume.volume * 100).rounded())) %")
             }

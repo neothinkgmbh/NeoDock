@@ -26,7 +26,8 @@ struct BatteryWidget: View {
         let tint: Color = status.percent <= 15 ? .red : status.percent <= 30 ? .yellow : .green
         WidgetTile(caption: status.isCharging ? "lädt" : "Akku",
                    face: AnyView(RingFace(progress: Double(status.percent) / 100, tint: tint,
-                                          symbol: status.isCharging ? "bolt.fill" : "battery.100")),
+                                          symbol: status.isCharging ? "bolt.fill" : "battery.100",
+                                          label: status.isCharging ? nil : "\(status.percent)")),
                    tint: tint) {
             Text("\(status.percent) %")
         }

@@ -19,9 +19,51 @@ struct WidgetTile<Value: View>: View {
     @State private var midX: CGFloat = 0
     @Environment(\.widgetWidth) private var width
     @Environment(\.widgetScale) private var scale
+    @Environment(\.widgetStyle) private var style
     @Environment(DockModel.self) private var model: DockModel?
 
     var body: some View {
+        content
+            .frame(height: DockMetrics.icon * scale)
+            .background {
+                RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
+                    .fill(.quaternary.opacity(0.35))
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
+                            .fill(LinearGradient(colors: [tint.opacity(isActive ? 0.32 : 0.14), tint.opacity(isActive ? 0.12 : 0.04)],
+                                                 startPoint: .topLeading, endPoint: .bottomTrailing))
+                    }
+                    .overlay {
+                        RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
+                            .strokeBorder(.white.opacity(isActive ? 0.25 : 0.1), lineWidth: 1)
+                    }
+                    .animation(.easeOut(duration: 0.3), value: isActive)
+            }
+            .help(style == .iconOnly ? (caption ?? "") : "")
+            .contentShape(RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale))
+            .scaleEffect(isPressed ? DockMetrics.pressedTileScale : 1)
+            .animation(.easeOut(duration: 0.12), value: isPressed)
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { midX = $0 }
+            .onTapGesture {
+                if let tapAt { tapAt(midX) } else { model?.onCloseCard?(); tap() }
+            }
+            .onLongPressGesture(minimumDuration: DockMetrics.longPress, perform: { hold?(midX) },
+                                onPressingChanged: { isPressed = $0 })
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// Nur Symbole: quadratische Kachel mit dem Gesicht, etwas größer. Mit Text: Gesicht + Wert + Beschriftung.
+    @ViewBuilder private var content: some View {
+        if style == .iconOnly, let face {
+            face.scaleEffect(scale * DockMetrics.iconOnlyFaceScale)
+                .frame(width: DockMetrics.icon * scale, height: DockMetrics.icon * scale)
+        } else {
+            textContent
+        }
+    }
+
+    private var textContent: some View {
         QuantizedWidth(width: width, scale: scale) {
             HStack(spacing: Space.sm * scale) {
                 if let face {
@@ -43,32 +85,6 @@ struct WidgetTile<Value: View>: View {
             .padding(.leading, (face == nil ? Space.md : Space.sm) * scale)
             .padding(.trailing, Space.md * scale)
         }
-        .frame(height: DockMetrics.icon * scale)
-        .background {
-            RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
-                .fill(.quaternary.opacity(0.35))
-                .overlay {
-                    RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
-                        .fill(LinearGradient(colors: [tint.opacity(isActive ? 0.32 : 0.14), tint.opacity(isActive ? 0.12 : 0.04)],
-                                             startPoint: .topLeading, endPoint: .bottomTrailing))
-                }
-                .overlay {
-                    RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
-                        .strokeBorder(.white.opacity(isActive ? 0.25 : 0.1), lineWidth: 1)
-                }
-                .animation(.easeOut(duration: 0.3), value: isActive)
-        }
-        .contentShape(RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale))
-        .scaleEffect(isPressed ? DockMetrics.pressedTileScale : 1)
-        .animation(.easeOut(duration: 0.12), value: isPressed)
-        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { midX = $0 }
-        .onTapGesture {
-            if let tapAt { tapAt(midX) } else { model?.onCloseCard?(); tap() }
-        }
-        .onLongPressGesture(minimumDuration: DockMetrics.longPress, perform: { hold?(midX) },
-                            onPressingChanged: { isPressed = $0 })
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(.isButton)
     }
 }
 
@@ -98,6 +114,7 @@ extension EnvironmentValues {
     @Entry var widgetWidth: WidgetWidth = .automatic
     /// Maßstab der Widgets: folgt der Icongröße (kleiner Bildschirm → alles kleiner), 60–100 %.
     @Entry var widgetScale: CGFloat = 1
+    @Entry var widgetStyle: WidgetStyle = .iconOnly
 }
 
 /// Die aktuelle Widget-Seite. Der Umschalter steht links: bei variabler Widgetbreite bleibt er so
@@ -124,6 +141,7 @@ struct WidgetsRow: View {
         }
         .environment(\.widgetWidth, model.settings.widgetWidth)
         .environment(\.widgetScale, model.widgetScale)
+        .environment(\.widgetStyle, model.settings.widgetStyle)
         .environment(model)
     }
 }

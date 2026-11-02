@@ -53,6 +53,14 @@ nonisolated enum GlassStyle: String, CaseIterable, Identifiable, Sendable {
     var title: String { self == .clear ? "Klar (mehr Liquid Glass)" : "Normal" }
 }
 
+/// Darstellung der Widgets: nur das Gesicht (Symbol) oder mit Wert und Beschriftung daneben.
+nonisolated enum WidgetStyle: String, CaseIterable, Identifiable, Sendable {
+    case iconOnly, withText
+
+    var id: String { rawValue }
+    var title: String { self == .iconOnly ? "Nur Symbole" : "Mit Text" }
+}
+
 /// Breite der Widget-Kacheln.
 nonisolated enum WidgetWidth: String, CaseIterable, Identifiable, Sendable {
     case automatic, compact, normal, wide
@@ -95,6 +103,7 @@ final class DockSettings {
     var passwordLength: Int { didSet { save(passwordLength, "passwordLength") } }
     var focusMinutes: Int { didSet { save(focusMinutes, "focusMinutes") } }
     var widgetWidth: WidgetWidth { didSet { save(widgetWidth.rawValue, "widgetWidth") } }
+    var widgetStyle: WidgetStyle { didSet { save(widgetStyle.rawValue, "widgetStyle") } }
     var glassStyle: GlassStyle { didSet { save(glassStyle.rawValue, "glassStyle") } }
     /// Eigene Leiste nur zeigen, wenn der Zeiger an den unteren Rand fährt.
     var autohide: Bool { didSet { save(autohide, "autohide") } }
@@ -129,6 +138,7 @@ final class DockSettings {
         passwordLength = defaults.object(forKey: "passwordLength") as? Int ?? 20
         focusMinutes = defaults.object(forKey: "focusMinutes") as? Int ?? 25
         widgetWidth = defaults.string(forKey: "widgetWidth").flatMap(WidgetWidth.init(rawValue:)) ?? .automatic
+        widgetStyle = defaults.string(forKey: "widgetStyle").flatMap(WidgetStyle.init(rawValue:)) ?? .iconOnly
         glassStyle = defaults.string(forKey: "glassStyle").flatMap(GlassStyle.init(rawValue:)) ?? .clear
         autohide = defaults.object(forKey: "autohide") as? Bool ?? false
         hideSystemDock = defaults.object(forKey: "hideSystemDock") as? Bool ?? false

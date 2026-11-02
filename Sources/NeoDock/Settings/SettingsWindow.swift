@@ -130,9 +130,13 @@ private struct WidgetSettings: View {
                     .font(.caption).foregroundStyle(.secondary)
             }
             Section {
-                Picker("Breite", selection: $settings.widgetWidth) {
+                Picker("Darstellung", selection: $settings.widgetStyle) {
+                    ForEach(WidgetStyle.allCases) { Text($0.title).tag($0) }
+                }
+                Picker("Breite (mit Text)", selection: $settings.widgetWidth) {
                     ForEach(WidgetWidth.allCases) { Text($0.title).tag($0) }
                 }
+                .disabled(settings.widgetStyle == .iconOnly)
                 Stepper("Widgets je Seite: \(settings.widgetsPerPage)", value: $settings.widgetsPerPage,
                         in: DockSettings.perPageRange)
                 Button("Standard wiederherstellen", action: settings.resetWidgets)
