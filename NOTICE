@@ -1,0 +1,7 @@
+NeoDock
+Copyright (c) 2026 neothink GmbH
+
+The project scaffold (build.sh, tools/, Icon/ structure) is derived from the
+"new-mac-app" template of the bama plugin, also under the MIT License:
+
+Copyright (c) 2026 Dave Ebbelaar
