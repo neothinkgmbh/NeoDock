@@ -17,10 +17,12 @@ enum SessionJumper {
         log.info("Sitzung \(session.name, privacy: .public) → \(url.lastPathComponent, privacy: .public)")
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
+        let isTerminal = Bundle(url: url)?.bundleIdentifier == terminalID
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
             if let error { log.error("Aktivieren fehlgeschlagen: \(error.localizedDescription, privacy: .public)") }
+            // Erst danach: Im Vollbild oder auf einem anderen Space entscheidet die Reihenfolge.
+            if isTerminal { Task { @MainActor in selectTerminalTab(of: session) } }
         }
-        if Bundle(url: url)?.bundleIdentifier == terminalID { selectTerminalTab(of: session) }
     }
 
     private static let terminalID = "com.apple.Terminal"

@@ -45,6 +45,7 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   wenn niemand am Rechner tippt. Grenze: Liquid Glass und vibrante Flächen zeichnet erst der
   Window-Server — sie fehlen im Snapshot; Glas nur am echten Bildschirm beurteilen.
 - Geometrie: Fenstergrenzen über `CGWindowListCopyWindowInfo` (geht ohne Bildschirmaufnahme-Recht).
+  Vorher `lsappinfo front` prüfen: Steht `loginwindow` vorn, ist der Mac gesperrt, alle Rahmen sind um 0,9 skaliert und Animationen stehen.
 - Position prüfen ohne Einstellung zu schreiben: Binary mit `-dockEdge left` starten. Bei Leiste links zeigt der Snapshot
   die App-Reihe zusätzlich doppelt groß: Das ist ein Fehler von `Snapshot.write`, nicht vom Fenster.
 - Automatisch geprüft wird nur die Logik; ein Umbau an der Leiste unten gehört per Pixelvergleich alter/neuer Snapshot belegt.

@@ -112,14 +112,23 @@ final class DockController {
         case .right:
             NSRect(x: shown ? bounds.maxX - gap - depth : bounds.maxX, y: visible.midY - length / 2, width: depth, height: length).integral
         }
-        guard frame != panel.frame else { return }
+        // Hinter der Kante kann ein weiterer Monitor liegen: Dort stünde die verborgene Leiste sichtbar.
+        let coversNeighbour = !shown && NSScreen.screens.contains { $0 != screen && $0.frame.intersects(frame) }
+        let alpha: CGFloat = coversNeighbour ? 0 : 1
+        panel.ignoresMouseEvents = coversNeighbour
+        guard frame != panel.frame else {
+            panel.alphaValue = alpha
+            return
+        }
         if panel.frame.width == frame.width, panel.frame.height == frame.height {
             NSAnimationContext.runAnimationGroup { context in
                 context.duration = DockMetrics.slideDuration
                 panel.animator().setFrame(frame, display: true)
+                panel.animator().alphaValue = alpha
             }
         } else {
             panel.setFrame(frame, display: true)
+            panel.alphaValue = alpha
         }
     }
 

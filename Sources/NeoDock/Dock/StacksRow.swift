@@ -92,7 +92,7 @@ struct StackIcon: View {
         }
         .buttonStyle(DockPressStyle())
         .onGeometryChange(for: CGFloat.self) { vertical ? $0.frame(in: .global).midY : $0.frame(in: .global).midX } action: { anchor = $0 }
-        .scaleEffect(isTargeted ? DockMetrics.dropTargetScale : 1, anchor: .bottom)
+        .scaleEffect(isTargeted ? DockMetrics.dropTargetScale : 1, anchor: UnitPoint(x: model.edge == .left ? 0 : model.edge == .right ? 1 : 0.5, y: vertical ? 0.5 : 1))
         .animation(.snappy(duration: 0.15), value: isTargeted)
         // Dateien auf den Stapel ziehen legt sie in den Ordner (wie im macOS-Dock).
         .onDrop(of: [.fileURL], isTargeted: $isTargeted) { providers in

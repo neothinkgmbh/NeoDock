@@ -344,10 +344,12 @@ final class AppsRowView: NSView, NSDraggingSource {
         let size = nameTagSize
         let frame = frames[index]
         let gap = restingTops[index] + Space.sm
+        // An der Seite begrenzt das Fenster die Breite, sehr lange Namen werden gekürzt.
+        let width = min(size.width, bounds.width - gap)
         nameTag.frame = switch edge {
         case .bottom: CGRect(x: frame.midX - size.width / 2, y: gap, width: size.width, height: size.height)
-        case .left: CGRect(x: gap, y: frame.midY - size.height / 2, width: size.width, height: size.height)
-        case .right: CGRect(x: bounds.width - gap - size.width, y: frame.midY - size.height / 2, width: size.width, height: size.height)
+        case .left: CGRect(x: gap, y: frame.midY - size.height / 2, width: width, height: size.height)
+        case .right: CGRect(x: bounds.width - gap - width, y: frame.midY - size.height / 2, width: width, height: size.height)
         }
         nameTag.isHidden = false
     }
@@ -413,7 +415,8 @@ final class AppsRowView: NSView, NSDraggingSource {
     // MARK: Klick, Drücken, Rechtsklick
 
     private func iconIndex(at point: CGPoint) -> Int? {
-        hitFrames.firstIndex { $0.insetBy(dx: -DockMetrics.iconSpacing / 2, dy: 0).contains(point) }
+        let gap = -DockMetrics.iconSpacing / 2
+        return hitFrames.firstIndex { $0.insetBy(dx: edge.isVertical ? 0 : gap, dy: edge.isVertical ? gap : 0).contains(point) }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -483,9 +486,19 @@ final class AppsRowView: NSView, NSDraggingSource {
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         defer { draggedKey = nil; model?.apps.setDragging(nil); applyLayout(animated: true) }
         guard operation.isEmpty, let model, let key = draggedKey, let app = apps.first(where: { $0.key == key }),
-              let window, !window.frame.contains(screenPoint) else { return }
+              let window, !barArea(of: window, reach: model.iconReach).contains(screenPoint) else { return }
         // Aus der Leiste herausgezogen (wie im macOS-Dock): nicht mehr behalten.
         model.apps.removeFromDock(app)
+    }
+
+    /// Wo ein Zug nicht als Herausziehen zählt. An der Seite ist das Fenster des Namensschilds wegen breit.
+    private func barArea(of window: NSWindow, reach: CGFloat) -> CGRect {
+        let frame = window.frame
+        return switch edge {
+        case .bottom: frame
+        case .left: CGRect(x: frame.minX, y: frame.minY, width: reach, height: frame.height)
+        case .right: CGRect(x: frame.maxX - reach, y: frame.minY, width: reach, height: frame.height)
+        }
     }
 
     // MARK: Ablegen auf der Reihe
@@ -596,6 +609,7 @@ final class NameTagView: NSView {
         super.init(frame: frame)
         label.font = .systemFont(ofSize: NSFont.systemFontSize, weight: .medium)
         label.alignment = .center
+        label.lineBreakMode = .byTruncatingTail
         let container = NSView()
         container.addSubview(label)
         glass.contentView = container

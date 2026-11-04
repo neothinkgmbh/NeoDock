@@ -8,11 +8,14 @@ nonisolated struct MinimizedWindow: Identifiable, Equatable, @unchecked Sendable
     let element: AXUIElement
     /// Besitzer-App; nil, wenn sie sich nicht ermitteln ließ (das Dock nennt sie nicht).
     let appURL: URL?
+    /// So oft wurde nach ihr gesucht: Eine App, die gerade nicht antwortet, kommt beim nächsten Mal dran.
+    let ownerSearches: Int
 
     var id: CFHashCode { CFHash(element) }
 
     static func == (lhs: Self, rhs: Self) -> Bool {
-        lhs.title == rhs.title && lhs.appURL == rhs.appURL && CFEqual(lhs.element, rhs.element)
+        lhs.title == rhs.title && lhs.appURL == rhs.appURL && lhs.ownerSearches == rhs.ownerSearches
+            && CFEqual(lhs.element, rhs.element)
     }
 }
 
@@ -33,6 +36,7 @@ final class BadgeMonitor {
     /// Hängt eine App bei der Suche nach dem Fensterbesitzer, kommt die nächste dran.
     nonisolated static let ownerTimeout: Float = 0.2
     nonisolated static let minimizedSubrole = "AXMinimizedWindowDockItem"
+    nonisolated static let maxOwnerSearches = 3
     static let settingsURL = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
     /// Prüfschalter NEODOCK_TEST_BADGE="/System/Applications/Mail.app=3": gibt eine Kennzahl vor.
     static let testBadges: [String: String] = {
@@ -95,8 +99,12 @@ final class BadgeMonitor {
             for item in children(list) {
                 if value(item, kAXSubroleAttribute) as? String == minimizedSubrole {
                     guard let title = value(item, kAXTitleAttribute) as? String else { continue }
-                    let appURL = known.first { CFEqual($0.element, item) }.map(\.appURL) ?? owner(of: title, in: apps)
-                    reading.minimized.append(MinimizedWindow(title: title, element: item, appURL: appURL))
+                    let seen = known.first { CFEqual($0.element, item) }
+                    let searches = seen?.ownerSearches ?? 0
+                    let isSettled = seen?.appURL != nil || searches >= maxOwnerSearches
+                    reading.minimized.append(MinimizedWindow(
+                        title: title, element: item, appURL: isSettled ? seen?.appURL : owner(of: title, in: apps),
+                        ownerSearches: isSettled ? searches : searches + 1))
                 } else if let label = value(item, "AXStatusLabel") as? String, !label.isEmpty,
                           let url = value(item, kAXURLAttribute) as? URL {
                     reading.labels[AppsProvider.key(url)] = label
@@ -111,8 +119,11 @@ final class BadgeMonitor {
             let element = AXUIElementCreateApplication(app.pid)
             AXUIElementSetMessagingTimeout(element, ownerTimeout)
             let windows = value(element, kAXWindowsAttribute) as? [AXUIElement] ?? []
-            if windows.contains(where: { value($0, kAXMinimizedAttribute) as? Bool == true && value($0, kAXTitleAttribute) as? String == title }) {
-                return app.url
+            for window in windows {
+                AXUIElementSetMessagingTimeout(window, ownerTimeout)
+                if value(window, kAXMinimizedAttribute) as? Bool == true, value(window, kAXTitleAttribute) as? String == title {
+                    return app.url
+                }
             }
         }
         return nil
