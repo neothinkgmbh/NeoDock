@@ -59,7 +59,13 @@ public enum ClaudeTranscript {
             .first { FileManager.default.fileExists(atPath: $0.path) }
     }
 
+    private static let questions = FileMemo<Bool>()
+
     public static func endsWithQuestion(url: URL) -> Bool {
+        questions.value(for: url) { readEndsWithQuestion(url: url) }
+    }
+
+    private static func readEndsWithQuestion(url: URL) -> Bool {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
         defer { try? handle.close() }
         let size = (try? handle.seekToEnd()) ?? 0

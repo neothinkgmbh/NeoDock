@@ -13,6 +13,7 @@ public struct ClaudeDesktopSessionSource: Sendable {
     let appSupport: URL
     let home: String
     public var visibleWindow: TimeInterval = 3 * 3600
+    private let entries = FileMemo<Entry?>()
     /// Transkript bzw. letzte Aktivität so frisch: die Sitzung arbeitet.
     public static let activeWindow: TimeInterval = 120
 
@@ -21,7 +22,7 @@ public struct ClaudeDesktopSessionSource: Sendable {
         self.appSupport = appSupport ?? URL(filePath: home).appending(path: "Library/Application Support/Claude")
     }
 
-    private struct Entry: Decodable {
+    private struct Entry: Decodable, Sendable {
         let sessionId: String?
         let cliSessionId: String?
         let cwd: String?
@@ -37,8 +38,10 @@ public struct ClaudeDesktopSessionSource: Sendable {
         let projects = URL(filePath: home).appending(path: ".claude/projects")
         return Self.folders.flatMap { folder, origin in
             sessionFiles(in: appSupport.appending(path: folder)).compactMap { url -> AgentSession? in
-                guard let data = try? Data(contentsOf: url), let e = try? decoder.decode(Entry.self, from: data),
-                      let id = e.sessionId, e.isArchived != true, let last = e.lastActivityAt else { return nil }
+                let entry = entries.value(for: url) {
+                    (try? Data(contentsOf: url)).flatMap { try? decoder.decode(Entry.self, from: $0) }
+                }
+                guard let e = entry, let id = e.sessionId, e.isArchived != true, let last = e.lastActivityAt else { return nil }
                 let lastActivity = Date(timeIntervalSince1970: last / 1000)
                 guard now.timeIntervalSince(lastActivity) <= visibleWindow else { return nil }
                 if let cli = e.cliSessionId, knownCliIDs.contains(cli) { return nil }

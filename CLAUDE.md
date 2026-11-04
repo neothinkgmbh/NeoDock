@@ -16,6 +16,7 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
     Normale Chats liegen nicht lokal.
   - `Magnification` Dock-Vergrößerung (Kosinus-Glocke + Verschiebung der Nachbarn).
   - `LSAppInfo` zerlegt die Ausgabe von `/usr/bin/lsappinfo`.
+  - `FileMemo` Ergebnis je Datei, gültig solange Größe und Änderungszeit gleich sind: Die Quellen laufen alle 2 s, unveränderte Dateien kosten nur ein `stat`.
 - `Sources/NeoDock/` die App:
   - `Dock/DockPanel.swift` Panel (rahmenlos, nicht aktivierend, Ebene über dem Systemdock, alle Spaces) + `DockController`.
   - `Dock/DockRootView.swift` Leiste: Apps | Trenner | Widgets auf einer Glasfläche.

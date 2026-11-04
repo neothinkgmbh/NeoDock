@@ -18,12 +18,11 @@ final class AppsRowView: NSView, NSDraggingSource {
         didSet {
             guard bouncing != oldValue else { return }
             let now = CACurrentMediaTime()
-            for key in bouncing.subtracting(oldValue) { hops[key] = now }
+            for key in bouncing.subtracting(oldValue) { startHop(key, at: now) }
             // Fertig: der angefangene Hüpfer läuft noch zu Ende, dann ruht das Icon.
             for key in oldValue.subtracting(bouncing) {
-                if let start = hops[key] { hops[key] = now - (now - start).truncatingRemainder(dividingBy: Self.hopPeriod) }
+                if let start = hops[key] { startHop(key, at: now - (now - start).truncatingRemainder(dividingBy: Self.hopPeriod)) }
             }
-            startLink()
         }
     }
     /// Kennzahlen je App-Pfad (aus dem macOS-Dock), z. B. ungelesene Mails.
@@ -41,6 +40,7 @@ final class AppsRowView: NSView, NSDraggingSource {
     private var strength: CGFloat = 0
     private var pointer: CGFloat?
     private var lastTimestamp: CFTimeInterval = 0
+    /// Laufende Sprünge: App-Pfad → Startzeit des aktuellen Sprungs.
     private var hops: [String: CFTimeInterval] = [:]
     private var pressedIndex: Int?
     private var mouseDownPoint: CGPoint = .zero
@@ -64,6 +64,7 @@ final class AppsRowView: NSView, NSDraggingSource {
         registerForDraggedTypes([NSPasteboard.PasteboardType(UTType.neoDockItem.identifier), .fileURL])
         nameTag.isHidden = true
         addSubview(nameTag)
+        if Self.logsBounce { Task { [weak self] in await self?.logHopHeights() } }
     }
 
     required init?(coder: NSCoder) { fatalError("nicht aus Interface Builder") }
@@ -117,6 +118,8 @@ final class AppsRowView: NSView, NSDraggingSource {
         updateBadges()
         updateDotColor()
         applyLayout(animated: false)
+        // Neue Ebenen, gleiche Sprünge: die Startzeit hält die Bahn in Phase.
+        hops.keys.forEach(addHopAnimation)
     }
 
     private func updateBadges() {
@@ -222,7 +225,7 @@ final class AppsRowView: NSView, NSDraggingSource {
 
         applyLayout(animated: false)
 
-        let busy = strength > 0 || !hops.isEmpty || !bouncing.isEmpty || draggedKey != nil
+        let busy = strength > 0 || draggedKey != nil
         if !busy, hovering == nil { stopLink() }
         Self.stats.maxWorkMs = max(Self.stats.maxWorkMs, (CACurrentMediaTime() - workStart) * 1000)
     }
@@ -242,7 +245,6 @@ final class AppsRowView: NSView, NSDraggingSource {
         let scales = Magnification.scales(pointerX: pointer.map(Double.init), centers: centers, maxScale: peak,
                                           reach: Double(iconSize) * DockMetrics.reachInIcons)
         let r = Magnification.shifts(scales: scales, base: Double(iconSize))
-        let now = CACurrentMediaTime()
         var frames: [CGRect] = []
         var hits: [CGRect] = []
         var restingTops: [CGFloat] = []
@@ -251,20 +253,18 @@ final class AppsRowView: NSView, NSDraggingSource {
         for (i, l) in iconLayers.enumerated() {
             let s = CGFloat(scales[i])
             let x = restCenter(i) + CGFloat(r.shifts[i])
-            let lift = bounceLift(for: apps[i].key, now: now)
             l.bounds = CGRect(x: 0, y: 0, width: iconSize, height: iconSize)
-            l.position = CGPoint(x: x, y: lift)
+            l.position = CGPoint(x: x, y: 0)
             let dropBoost: CGFloat = dropTargetIndex == i ? DockMetrics.dropTargetScale : 1
             l.transform = CATransform3DMakeScale(s * dropBoost, s * dropBoost, 1)
             l.opacity = apps[i].key == draggedKey ? 0.35 : 1
             l.contents = pressedIndex == i ? image(for: apps[i]).pressed : image(for: apps[i]).normal
             dotLayers[i].position = CGPoint(x: x, y: -DockMetrics.runDot - Space.xxs)
             dotLayers[i].isHidden = !apps[i].isRunning
-            frames.append(CGRect(x: x - iconSize * s / 2, y: lift, width: iconSize * s, height: iconSize * s))
+            frames.append(CGRect(x: x - iconSize * s / 2, y: 0, width: iconSize * s, height: iconSize * s))
             let hopRoom = hops[apps[i].key] == nil ? 0 : iconSize * DockMetrics.bounceHeight
             hits.append(CGRect(x: x - iconSize * s / 2, y: 0, width: iconSize * s, height: iconSize * s + hopRoom))
             restingTops.append(iconSize * s)
-            if Self.logsBounce, lift > 0 { NSLog("NeoDock HOP \(apps[i].name) \(Int(lift))") }
         }
         CATransaction.commit()
         visibleFrames = frames
@@ -293,8 +293,11 @@ final class AppsRowView: NSView, NSDraggingSource {
     // MARK: Hüpfen
 
     /// Dauer eines Sprungs. Die Bahn ist eine Wurfparabel wie beim macOS-Dock: oben langsam
-    /// wendend, unten hart aufsetzend — kein Sinus.
+    /// wendend, unten hart aufsetzend — kein Sinus. Sie läuft als Animation im Render-Server, die
+    /// App rechnet dabei kein Bild. Eine Anfrage kann stundenlang hüpfen.
     private static let hopPeriod: CFTimeInterval = DockMetrics.bouncePeriod
+    private static let hopSegments = 24
+    private static let hopCurve = (0...hopSegments).map { parabola(hopPeriod * Double($0) / Double(hopSegments)) }
 
     /// Höhe 0…1 eines Sprungs zum Zeitpunkt t (0 ≤ t < Periode): 4·u·(1−u).
     private static func parabola(_ t: CFTimeInterval) -> CGFloat {
@@ -304,17 +307,44 @@ final class AppsRowView: NSView, NSDraggingSource {
 
     func hop(_ key: String) {
         guard !bouncing.contains(key) else { return }
-        hops[key] = CACurrentMediaTime()
-        startLink()
+        startHop(key, at: CACurrentMediaTime())
     }
 
-    private func bounceLift(for key: String, now: CFTimeInterval) -> CGFloat {
-        guard let start = hops[key] else { return 0 }
-        let t = now - start
+    /// Dauerhüpfen, solange der Schlüssel in `bouncing` steht; sonst genau dieser eine Sprung.
+    private func startHop(_ key: String, at start: CFTimeInterval) {
+        hops[key] = start
+        addHopAnimation(key)
+        applyLayout(animated: false)
+        guard !bouncing.contains(key) else { return }
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(start + Self.hopPeriod - CACurrentMediaTime()))
+            guard let self, self.hops[key] == start, !self.bouncing.contains(key) else { return }
+            self.hops[key] = nil
+            self.applyLayout(animated: false)
+        }
+    }
+
+    private func addHopAnimation(_ key: String) {
+        guard let start = hops[key], let index = apps.firstIndex(where: { $0.key == key }) else { return }
         let height = iconSize * DockMetrics.bounceHeight
-        if bouncing.contains(key) { return height * Self.parabola(t.truncatingRemainder(dividingBy: Self.hopPeriod)) }
-        if t >= Self.hopPeriod { hops[key] = nil; return 0 }
-        return height * Self.parabola(t)
+        let hop = CAKeyframeAnimation(keyPath: "position.y")
+        hop.values = Self.hopCurve.map { $0 * height }
+        hop.duration = Self.hopPeriod
+        hop.beginTime = start
+        hop.repeatCount = bouncing.contains(key) ? .infinity : 1
+        hop.isAdditive = true
+        iconLayers[index].add(hop, forKey: "hop")
+    }
+
+
+    /// Prüfschalter: Die Animation läuft ohne die App, die Höhe steht in der Präsentationsebene.
+    private func logHopHeights() async {
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(50))
+            for (app, layer) in zip(apps, iconLayers) where hops[app.key] != nil {
+                NSLog("NeoDock HOP \(app.name) \(Int(layer.presentation()?.position.y ?? 0))")
+            }
+        }
     }
 
     // MARK: Klick, Drücken, Rechtsklick

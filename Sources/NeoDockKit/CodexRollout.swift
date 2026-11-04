@@ -55,12 +55,21 @@ public enum CodexRollout {
     static let callTypes: Set<String> = ["function_call", "custom_tool_call"]
     static let outputTypes: Set<String> = ["function_call_output", "custom_tool_call_output"]
 
+    /// Jedes auswertbare Ereignis enthält eines dieser Stücke. Die meisten Bytes eines Rollouts
+    /// sind Nachrichten und Werkzeugausgaben; solche Zeilen werden gar nicht erst als JSON zerlegt.
+    private static let eventMarkers = ["task_", "turn_aborted", "_call"].map { Data($0.utf8) }
+
     public static func parse<S: Sequence>(lines: S) -> Tail where S.Element: StringProtocol {
+        parse(rawLines: lines.lazy.map { Data($0.utf8) })
+    }
+
+    static func parse<S: Sequence>(rawLines: S) -> Tail where S.Element == Data {
         let decoder = JSONDecoder()
         var tail = Tail.empty
         var open: [(id: String, call: OpenCall)] = []
-        for raw in lines {
-            guard let line = try? decoder.decode(Line.self, from: Data(raw.utf8)),
+        for raw in rawLines {
+            guard eventMarkers.contains(where: { raw.range(of: $0) != nil }),
+                  let line = try? decoder.decode(Line.self, from: raw),
                   let payload = line.payload, let kind = payload.type else { continue }
             switch line.type {
             case "event_msg":
@@ -97,7 +106,7 @@ public enum CodexRollout {
         while true {
             try? handle.seek(toOffset: UInt64(size - chunk))
             let data = (try? handle.read(upToCount: chunk)) ?? Data()
-            let tail = parse(lines: String(decoding: data, as: UTF8.self).split(separator: "\n"))
+            let tail = parse(rawLines: data.split(separator: UInt8(ascii: "\n")))
             if tail.lastTask != nil || chunk >= size || chunk >= limit { return tail }
             chunk = min(chunk * 4, size, limit)
         }
