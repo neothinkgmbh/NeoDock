@@ -19,6 +19,7 @@ struct DockRootView: View {
             .onChange(of: model.settings.maxIconSize) { model.onLayoutNeeded?() }
             .onChange(of: model.settings.effectiveScale) { model.onLayoutNeeded?() }
             .onChange(of: model.settings.autohide) { model.onLayoutNeeded?() }
+            .onChange(of: model.attentionKeys) { model.onLayoutNeeded?() }
             .onChange(of: model.settings.hideSystemDock) { model.onSystemDockSettingChanged?() }
     }
 }

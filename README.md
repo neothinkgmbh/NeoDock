@@ -10,7 +10,7 @@ A Liquid Glass dock for macOS with widgets next to your apps — and a live view
 
 **Dock**
 - Liquid Glass bar with your pinned and running apps, magnification under the pointer (Core Animation, display-synced)
-- Click, ⌘-click (show in Finder), ⌥-click (hide others), launch bounce, running indicators, badge counts (unread mail …)
+- Click, ⌘-click (show in Finder), ⌥-click (hide others), launch and attention bounce, running indicators, badge counts (unread mail …)
 - Drag to reorder, drag out to remove, drop an app to pin it, drop files on an app to open them
 - Folder stacks on the right (drop a folder to add it, drop files onto it to move them), Trash with full/empty state
 - Right-click menus like the system Dock, optional auto-hide, scales down on small screens

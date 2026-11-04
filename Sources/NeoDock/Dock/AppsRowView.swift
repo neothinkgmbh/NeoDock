@@ -13,13 +13,14 @@ final class AppsRowView: NSView, NSDraggingSource {
     var apps: [DockApp] = [] { didSet { if apps != oldValue { rebuildLayers() } } }
     var iconSize: CGFloat = DockMetrics.icon { didSet { if iconSize != oldValue { rebuildLayers() } } }
     var maxScale: CGFloat = 1.6
-    var launching: Set<String> = [] {
+    /// Apps, deren Icon gerade durchgehend hüpft: sie starten oder wollen Aufmerksamkeit.
+    var bouncing: Set<String> = [] {
         didSet {
-            guard launching != oldValue else { return }
+            guard bouncing != oldValue else { return }
             let now = CACurrentMediaTime()
-            for key in launching.subtracting(oldValue) { hops[key] = now }
-            // Fertig gestartet: der angefangene Hüpfer läuft noch zu Ende, dann ruht das Icon.
-            for key in oldValue.subtracting(launching) {
+            for key in bouncing.subtracting(oldValue) { hops[key] = now }
+            // Fertig: der angefangene Hüpfer läuft noch zu Ende, dann ruht das Icon.
+            for key in oldValue.subtracting(bouncing) {
                 if let start = hops[key] { hops[key] = now - (now - start).truncatingRemainder(dividingBy: Self.hopPeriod) }
             }
             startLink()
@@ -46,6 +47,11 @@ final class AppsRowView: NSView, NSDraggingSource {
     private var draggedKey: String?
     private var dropTargetIndex: Int?
     private var visibleFrames: [CGRect] = []
+    /// Klickflächen: bei einem hüpfenden Icon die ganze Spalte in fester Höhe. Am aktuellen Hub
+    /// hängend sänke die Fläche zwischen Drücken und Loslassen unter dem Zeiger weg.
+    private var hitFrames: [CGRect] = []
+    /// Prüfschalter NEODOCK_LOG_BOUNCE=1: protokolliert die echte Hubhöhe je Bild.
+    private static let logsBounce = ProcessInfo.processInfo.environment["NEODOCK_LOG_BOUNCE"] == "1"
     private let nameTag = NameTagView()
 
     /// Bildstatistik für den Prüfschalter: Bilder, verpasste Bilder, längste Arbeit pro Bild.
@@ -80,6 +86,8 @@ final class AppsRowView: NSView, NSDraggingSource {
     // MARK: Ebenen
 
     private func rebuildLayers() {
+        // Ein Hüpfer ohne Icon endet nie von selbst und hielte den Display-Link am Laufen.
+        hops = hops.filter { key, _ in apps.contains { $0.key == key } }
         iconLayers.forEach { $0.removeFromSuperlayer() }
         dotLayers.forEach { $0.removeFromSuperlayer() }
         iconLayers = apps.map { app in
@@ -214,7 +222,7 @@ final class AppsRowView: NSView, NSDraggingSource {
 
         applyLayout(animated: false)
 
-        let busy = strength > 0 || !hops.isEmpty || !launching.isEmpty || draggedKey != nil
+        let busy = strength > 0 || !hops.isEmpty || !bouncing.isEmpty || draggedKey != nil
         if !busy, hovering == nil { stopLink() }
         Self.stats.maxWorkMs = max(Self.stats.maxWorkMs, (CACurrentMediaTime() - workStart) * 1000)
     }
@@ -236,6 +244,7 @@ final class AppsRowView: NSView, NSDraggingSource {
         let r = Magnification.shifts(scales: scales, base: Double(iconSize))
         let now = CACurrentMediaTime()
         var frames: [CGRect] = []
+        var hits: [CGRect] = []
         var restingTops: [CGFloat] = []
         CATransaction.begin()
         CATransaction.setDisableActions(!animated)
@@ -252,10 +261,14 @@ final class AppsRowView: NSView, NSDraggingSource {
             dotLayers[i].position = CGPoint(x: x, y: -DockMetrics.runDot - Space.xxs)
             dotLayers[i].isHidden = !apps[i].isRunning
             frames.append(CGRect(x: x - iconSize * s / 2, y: lift, width: iconSize * s, height: iconSize * s))
+            let hopRoom = hops[apps[i].key] == nil ? 0 : iconSize * DockMetrics.bounceHeight
+            hits.append(CGRect(x: x - iconSize * s / 2, y: 0, width: iconSize * s, height: iconSize * s + hopRoom))
             restingTops.append(iconSize * s)
+            if Self.logsBounce, lift > 0 { NSLog("NeoDock HOP \(apps[i].name) \(Int(lift))") }
         }
         CATransaction.commit()
         visibleFrames = frames
+        hitFrames = hits
         model?.magnify.setExtra(CGFloat(r.extra))
         updateNameTag(frames: frames, restingTops: restingTops)
     }
@@ -290,6 +303,7 @@ final class AppsRowView: NSView, NSDraggingSource {
     }
 
     func hop(_ key: String) {
+        guard !bouncing.contains(key) else { return }
         hops[key] = CACurrentMediaTime()
         startLink()
     }
@@ -298,7 +312,7 @@ final class AppsRowView: NSView, NSDraggingSource {
         guard let start = hops[key] else { return 0 }
         let t = now - start
         let height = iconSize * DockMetrics.bounceHeight
-        if launching.contains(key) { return height * Self.parabola(t.truncatingRemainder(dividingBy: Self.hopPeriod)) }
+        if bouncing.contains(key) { return height * Self.parabola(t.truncatingRemainder(dividingBy: Self.hopPeriod)) }
         if t >= Self.hopPeriod { hops[key] = nil; return 0 }
         return height * Self.parabola(t)
     }
@@ -306,7 +320,7 @@ final class AppsRowView: NSView, NSDraggingSource {
     // MARK: Klick, Drücken, Rechtsklick
 
     private func iconIndex(at point: CGPoint) -> Int? {
-        visibleFrames.firstIndex { $0.insetBy(dx: -DockMetrics.iconSpacing / 2, dy: 0).contains(point) }
+        hitFrames.firstIndex { $0.insetBy(dx: -DockMetrics.iconSpacing / 2, dy: 0).contains(point) }
     }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
@@ -555,7 +569,7 @@ final class MenuAction: NSObject {
 }
 
 /// SwiftUI-Hülle. Liest die Modellwerte in `updateNSView` — SwiftUI beobachtet sie dort und ruft
-/// die Aktualisierung nur auf, wenn sich Apps, Größe oder Startzustand ändern, nie pro Mausbewegung.
+/// die Aktualisierung nur auf, wenn sich Apps, Größe oder Hüpf-Zustand ändern, nie pro Mausbewegung.
 struct AppsRow: NSViewRepresentable {
     let model: DockModel
 
@@ -570,7 +584,7 @@ struct AppsRow: NSViewRepresentable {
         view.maxScale = CGFloat(model.settings.effectiveScale)
         view.iconSize = model.iconSize
         view.apps = model.apps.apps
-        view.launching = model.apps.launching
+        view.bouncing = model.apps.launching.union(model.attentionKeys)
         view.badges = model.badges.labels
     }
 }

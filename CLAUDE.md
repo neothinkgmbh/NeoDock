@@ -15,6 +15,7 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
     `~/Library/Application Support/Claude/{claude-code-sessions,local-agent-mode-sessions}/<konto>/<org>/local_*.json`.
     Normale Chats liegen nicht lokal.
   - `Magnification` Dock-Vergrößerung (Kosinus-Glocke + Verschiebung der Nachbarn).
+  - `LSAppInfo` zerlegt die Ausgabe von `/usr/bin/lsappinfo`.
 - `Sources/NeoDock/` die App:
   - `Dock/DockPanel.swift` Panel (rahmenlos, nicht aktivierend, Ebene über dem Systemdock, alle Spaces) + `DockController`.
   - `Dock/DockRootView.swift` Leiste: Apps | Trenner | Widgets auf einer Glasfläche.
@@ -26,6 +27,7 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   - `Settings/` `DockSettings` (UserDefaults: Widgets/Reihenfolge, Größe, Vergrößerung, angeheftete Apps, Stapel)
     und das Einstellungsfenster. Angeheftete Apps und Stapel werden beim ersten Start aus `com.apple.dock` übernommen (nur gelesen).
   - `System/` Apps (angeheftete aus `com.apple.dock` nur gelesen + laufende), Prozessbaum (sysctl/libproc),
+    `AttentionMonitor` (Icons hüpfen bei `requestUserAttention`: `lsappinfo listen` als Wecker, Stand aus `LSWantsAttention`),
     `SessionJumper` (holt die beherbergende App per LaunchServices nach vorne), `SessionStore` (Takt 2 s, I/O abseits des Main-Threads).
 
 ## Bauen und prüfen

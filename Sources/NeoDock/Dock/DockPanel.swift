@@ -93,6 +93,13 @@ final class DockController {
         fitIcons(into: visible.width * DockMetrics.maxScreenShare)
         let reserve = model.iconSize * CGFloat(settings.effectiveScale - 1) * DockMetrics.reserveIcons
         let width = min(max(model.barWidth, DockMetrics.icon) + reserve, visible.width)
+        // Will eine App Aufmerksamkeit, fährt die Leiste hoch, sonst bliebe das Hüpfen unsichtbar.
+        // Das zählt als normales Einblenden: Am Ende entscheidet `mouseMoved` wie sonst auch, ob sie
+        // wegfährt, und lässt sie stehen, wenn der Zeiger darauf liegt oder eine Karte offen ist.
+        let wantsAttention = !model.attentionKeys.isEmpty
+        if settings.autohide, wantsAttention { isRevealed = true }
+        if hadAttention, !wantsAttention { mouseMoved() }
+        hadAttention = wantsAttention
         let shown = !settings.autohide || isRevealed
         let y = shown ? screen.frame.minY + DockMetrics.bottomGap : screen.frame.minY - model.panelHeight
         let frame = NSRect(x: visible.midX - width / 2, y: y, width: width, height: model.panelHeight).integral
@@ -119,6 +126,8 @@ final class DockController {
             return event
         }) { mouseMonitors.append(local) }
     }
+
+    private var hadAttention = false
 
     private func mouseMoved() {
         guard settings.autohide, let screen else { return }
@@ -150,7 +159,10 @@ final class DockController {
     }
 
     /// Beim regulären Beenden: Pipe schließen, der Wächter stellt das Dock wieder her.
-    func shutdown() { systemDock.disable() }
+    func shutdown() {
+        systemDock.disable()
+        model.attention.stop()
+    }
 
     /// Wie das macOS-Dock: passt die Leiste nicht auf den Bildschirm, wird ALLES kleiner — Icons,
     /// Widgets, Stapel. Die Breite wächst monoton mit der Icongröße (Breite = a·Größe + b, b ≥ 0),

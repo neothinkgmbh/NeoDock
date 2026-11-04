@@ -42,10 +42,13 @@ final class DockModel {
     let magnify = MagnifyState()
     let trash = TrashMonitor()
     let badges = BadgeMonitor()
+    let attention = AttentionMonitor()
 
     /// Die AppKit-App-Reihe — Prüfschalter setzen den nachgespielten Zeiger direkt dort,
     /// ohne SwiftUI (so wie die echte Maus über den Display-Link).
     @ObservationIgnored weak var appsRowView: AppsRowView?
+    /// Apps mit Icon in der Leiste, die Aufmerksamkeit wollen. Apps ohne Icon zählen nicht.
+    var attentionKeys: Set<String> { attention.keys.intersection(apps.apps.map(\.key)) }
     /// Breite der Leiste in Ruhe (ohne Vergrößerung), vom Layout gemessen.
     var barWidth: CGFloat = 0
     /// Icongröße der App-Reihe; schrumpft, wenn die Leiste sonst breiter als der Bildschirm wäre.
@@ -120,6 +123,7 @@ final class DockModel {
         volume.start()
         trash.start()
         badges.start()
+        attention.start()
         slowTask = Task { [weak self] in
             while !Task.isCancelled {
                 try? await Task.sleep(for: DockMetrics.batteryInterval)
