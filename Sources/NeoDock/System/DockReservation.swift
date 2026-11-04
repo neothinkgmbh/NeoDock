@@ -1,6 +1,5 @@
-import AppKit
-import ApplicationServices
 import CoreGraphics
+import Foundation
 import NeoDockKit
 import os
 
@@ -83,49 +82,5 @@ final class DockReservation {
         guard let setRect else { return }
         let result = setRect(connection, area, Self.reason)
         if result != 0 { Self.log.notice("Dock-Fläche abgelehnt: \(result)") }
-    }
-}
-
-/// Kürzt offene Fenster, die in die Leiste ragen. Einmalig: Macht jemand ein Fenster danach von Hand
-/// größer, bleibt es so, wie beim macOS-Dock.
-nonisolated enum WindowFitter {
-    private static let timeout: Float = 0.2
-    private static let standardWindow = "AXStandardWindow"
-
-    @MainActor static func fit(above area: CGRect, screen: CGRect) {
-        let own = ProcessInfo.processInfo.processIdentifier
-        let pids = NSWorkspace.shared.runningApplications
-            .filter { $0.activationPolicy == .regular && $0.processIdentifier != own }
-            .map(\.processIdentifier)
-        Task.detached(priority: .utility) {
-            for pid in pids { fitWindows(of: pid, above: area, screen: screen) }
-        }
-    }
-
-    private static func fitWindows(of pid: pid_t, above area: CGRect, screen: CGRect) {
-        let app = AXUIElementCreateApplication(pid)
-        AXUIElementSetMessagingTimeout(app, timeout)
-        for window in value(app, kAXWindowsAttribute) as? [AXUIElement] ?? [] {
-            AXUIElementSetMessagingTimeout(window, timeout)
-            guard value(window, kAXSubroleAttribute) as? String == standardWindow,
-                  value(window, kAXMinimizedAttribute) as? Bool != true,
-                  value(window, "AXFullScreen") as? Bool != true,
-                  let frame = frame(of: window), screen.contains(CGPoint(x: frame.midX, y: frame.midY)),
-                  let fitted = DockArea.fitted(frame, above: area, minimum: DockMetrics.minFittedWindow),
-                  var size = Optional(fitted.size), let value = AXValueCreate(.cgSize, &size) else { continue }
-            AXUIElementSetAttributeValue(window, kAXSizeAttribute as CFString, value)
-        }
-    }
-
-    private static func frame(of window: AXUIElement) -> CGRect? {
-        guard let position = value(window, kAXPositionAttribute), let size = value(window, kAXSizeAttribute) else { return nil }
-        var origin = CGPoint.zero, extent = CGSize.zero
-        guard AXValueGetValue(position as! AXValue, .cgPoint, &origin), AXValueGetValue(size as! AXValue, .cgSize, &extent) else { return nil }
-        return CGRect(origin: origin, size: extent)
-    }
-
-    private static func value(_ element: AXUIElement, _ name: String) -> AnyObject? {
-        var result: AnyObject?
-        return AXUIElementCopyAttributeValue(element, name as CFString, &result) == .success ? result : nil
     }
 }

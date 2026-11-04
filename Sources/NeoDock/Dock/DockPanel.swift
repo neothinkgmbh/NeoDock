@@ -38,7 +38,7 @@ final class DockController {
     private let settingsWindow = SettingsWindowController()
     private let systemDock = SystemDockHider()
     private let reservation = DockReservation()
-    private var fittedDepth: CGFloat?
+    private let windowGuard = WindowGuard()
     private var screenObserver: NSObjectProtocol?
     private var mouseMonitors: [Any] = []
     /// Bei Autohide: ist die Leiste gerade sichtbar?
@@ -143,17 +143,13 @@ final class DockController {
         let length = model.barLength
         guard settings.dockEdge == .bottom, settings.hideSystemDock, systemDock.isActive, !settings.autohide, length > 0 else {
             reservation.release(DockArea.free(screen: screen.frame))
-            fittedDepth = nil
+            windowGuard.stop()
             return
         }
         let depth = DockMetrics.bottomGap + model.barDepth + Space.xs
         let area = DockArea.reserved(screen: screen.frame, length: length, depth: depth)
         reservation.reserve(area)
-        // Offene Fenster lässt macOS stehen, sie blieben hinter der Leiste. Die Länge ändert sich mit
-        // jeder App und spielt für sie keine Rolle.
-        guard depth != fittedDepth else { return }
-        fittedDepth = depth
-        WindowFitter.fit(above: area, screen: screen.frame)
+        windowGuard.update(area: area, screen: screen.frame)
     }
 
     // MARK: Autohide — die Leiste fährt aus, wenn der Zeiger ihren Bildschirmrand berührt.
@@ -217,6 +213,7 @@ final class DockController {
 
     /// Beim regulären Beenden: Pipe schließen, der Wächter stellt das Dock wieder her.
     func shutdown() {
+        windowGuard.stop()
         reservation.stop()
         systemDock.disable()
         model.attention.stop()

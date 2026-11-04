@@ -59,6 +59,11 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   `visibleFrame` stimmt. Nur unten und nur solange der Wächter läuft: Die Fläche überlebt das Ende von NeoDock und einen
   Dock-Neustart, der Wächter gibt sie mit `NeoDock --release-dock-area` frei. Das Dock überschreibt sie bei App-Starts,
   deshalb der 1-s-Takt. An der Seite geht es nicht: AppKit zieht immer unten ab, in allen Varianten gemessen.
+- Die Fläche wirkt nur auf neu gestartete Apps: Laufende speichern `visibleFrame` zwischen, das Signal zum Neulesen sendet allein
+  das macOS-Dock. Darum `WindowGuard` (AXObserver je App): Wächst ein Fenster in die Leiste, wird es gekürzt. Ein Zoom-Test
+  taugt nur mit einer App, die schon vor der Reservierung lief.
+  Der Druck auf `AXZoomButton` löst Vollbild aus, nicht Zoom. Zoomen per `set zoomed of window 1 to true` (Mail) oder `NSWindow.zoom`.
+  `pgrep -f …/NeoDock` trifft auch das Wächter-Skript, also `pgrep -x NeoDock`.
 - Datenquellen von Claude/Codex nur lesend öffnen; nichts in `~/.claude` oder `~/.codex` schreiben.
 - Abstände aus `Space`/`DockMetrics` (`UI/Tokens.swift`), 4-pt-Raster: `tools/grid-lint.sh`.
 - Liquid Glass nur für schwebende Flächen (Leiste, Karte, Namensschild), nicht für Inhalte.
