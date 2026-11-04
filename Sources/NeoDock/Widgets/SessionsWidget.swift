@@ -1,20 +1,21 @@
 import NeoDockKit
 import SwiftUI
 
-/// Sitzungs-Widget: zeigt die wichtigste Sitzung mit Namen und Zustand.
-/// Klick: wartet jemand auf dich, springt er dorthin — sonst öffnet er die Liste. Halten: Liste.
+/// Sitzungs-Widget: zeigt je Tool die Zahl der Sitzungen. Klick oder Halten öffnet die Liste; wer
+/// wartet, steht dort oben. Der Klick springt bewusst nicht direkt zur wartenden Sitzung: Eine seit
+/// Stunden offene Frage ließe die Liste sonst nie aufgehen.
 struct SessionsWidget: View {
     let store: SessionStore
     let hold: (CGFloat) -> Void
-    /// Klick ohne wartende Sitzung: Liste umschalten (zweiter Klick schließt).
+    /// Klick: Liste umschalten (zweiter Klick schließt).
     let toggle: (CGFloat) -> Void
     @Environment(DockModel.self) private var model: DockModel?
 
     var body: some View {
         let toolStack = model?.edge.isVertical == true ? AnyLayout(VStackLayout(spacing: Space.sm)) : AnyLayout(HStackLayout(spacing: Space.sm))
         // Nur Symbole — je Tool sein App-Icon mit Zahl der Sitzungen; die Farbe der Zahl zeigt den
-        // dringendsten Zustand. Spart Platz; Details zeigt die Liste (Klick ohne Wartende / Halten).
-        WidgetTile(caption: nil, hold: hold, tapAt: tap,
+        // dringendsten Zustand. Spart Platz; Details zeigt die Liste.
+        WidgetTile(caption: nil, hold: hold, tapAt: toggle,
                    tint: store.needsYou.isEmpty ? (store.working.isEmpty ? .gray : .green) : .orange,
                    isActive: !store.needsYou.isEmpty) {
             toolStack {
@@ -35,11 +36,7 @@ struct SessionsWidget: View {
         guard !store.sessions.isEmpty else { return "Keine Agenten-Sitzungen" }
         let parts = [("arbeiten", store.working.count), ("warten auf dich", store.needsYou.count)]
             .filter { $0.1 > 0 }.map { "\($0.1) \($0.0)" }
-        return (parts.isEmpty ? "alle bereit" : parts.joined(separator: " · ")) + " — Klick: Liste · Halten: alle Sitzungen"
-    }
-
-    private func tap(_ anchor: CGFloat) {
-        if let waiting = store.needsYou.first { SessionJumper.jump(to: waiting) } else { toggle(anchor) }
+        return (parts.isEmpty ? "alle bereit" : parts.joined(separator: " · ")) + " — Klick: alle Sitzungen"
     }
 }
 
