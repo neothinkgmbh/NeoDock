@@ -15,6 +15,7 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
     `~/Library/Application Support/Claude/{claude-code-sessions,local-agent-mode-sessions}/<konto>/<org>/local_*.json`.
     Normale Chats liegen nicht lokal.
   - `Magnification` Dock-Vergrößerung (Kosinus-Glocke + Verschiebung der Nachbarn).
+  - `DockArea` belegte Fläche der Leiste, Kürzen von Fenstern davor.
   - `LSAppInfo` zerlegt die Ausgabe von `/usr/bin/lsappinfo`.
   - `FileMemo` Ergebnis je Datei, gültig solange Größe und Änderungszeit gleich sind: Die Quellen laufen alle 2 s, unveränderte Dateien kosten nur ein `stat`.
 - `Sources/NeoDock/` die App:
@@ -52,8 +53,12 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
 
 ## Regeln
 
-- Nutzer-Einstellungen anderer Apps nur lesen. Das Systemdock auszublenden ist eine eigene,
-  ausdrücklich einzuschaltende Funktion mit absturzsicherer Wiederherstellung (noch nicht gebaut).
+- Nutzer-Einstellungen anderer Apps nur lesen. Ausnahme: `SystemDockHider`, ausdrücklich einzuschalten, mit absturzsicherer
+  Wiederherstellung durch den Wächter (`SystemDockGuard`).
+- `DockReservation` meldet die Leistenfläche über die private Funktion `SLSSetDockRectWithReason` als Dock-Fläche, damit
+  `visibleFrame` stimmt. Nur unten und nur solange der Wächter läuft: Die Fläche überlebt das Ende von NeoDock und einen
+  Dock-Neustart, der Wächter gibt sie mit `NeoDock --release-dock-area` frei. Das Dock überschreibt sie bei App-Starts,
+  deshalb der 1-s-Takt. An der Seite geht es nicht: AppKit zieht immer unten ab, in allen Varianten gemessen.
 - Datenquellen von Claude/Codex nur lesend öffnen; nichts in `~/.claude` oder `~/.codex` schreiben.
 - Abstände aus `Space`/`DockMetrics` (`UI/Tokens.swift`), 4-pt-Raster: `tools/grid-lint.sh`.
 - Liquid Glass nur für schwebende Flächen (Leiste, Karte, Namensschild), nicht für Inhalte.

@@ -9,6 +9,14 @@ import SwiftUI
 struct NeoDockApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var delegate
 
+    init() {
+        // Aufruf durch den Wächter, nachdem NeoDock geendet hat: Fläche freigeben, sonst nichts.
+        if CommandLine.arguments.contains(DockReservation.releaseArgument) {
+            DockReservation().releaseNow()
+            exit(0)
+        }
+    }
+
     var body: some Scene {
         MenuBarExtra("NeoDock", systemImage: "dock.rectangle") {
             Button("Agenten-Sitzungen zeigen") { delegate.dock.toggleSessionsCard() }

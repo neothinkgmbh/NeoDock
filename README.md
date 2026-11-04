@@ -14,6 +14,7 @@ A Liquid Glass dock for macOS with widgets next to your apps — and a live view
 - Drag to reorder, drag out to remove, drop an app to pin it, drop files on an app to open them
 - Folder stacks (drop a folder to add it, drop files onto it to move them), a grid for folders of apps, Trash with full/empty state
 - Minimized windows in the bar, click to bring them back
+- With the system Dock hidden, windows keep clear of the bar at the bottom of the screen, just like with the real Dock
 - Right-click menus like the system Dock, optional auto-hide, bottom, left or right of the screen, scales down on small screens
 
 **Widgets** (click = quick action, press and hold = card)

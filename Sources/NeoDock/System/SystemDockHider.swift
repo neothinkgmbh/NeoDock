@@ -13,12 +13,17 @@ final class SystemDockHider {
 
     var isActive: Bool { watchdog?.isRunning == true }
 
+    /// Gibt die Dock-Fläche frei: Das geht nur über die private Funktion, also ruft der Wächter NeoDock selbst auf.
+    private static var cleanup: [String] {
+        Bundle.main.executablePath.map { ["\(SystemDockGuard.shellQuoted($0)) \(DockReservation.releaseArgument)"] } ?? []
+    }
+
     /// Beim Start: Ist von einem früheren Lauf noch eine Wiederherstellung offen (etwa weil der
     /// Wächter mit SIGKILL beendet wurde), wird sie jetzt nachgeholt.
     func recoverIfNeeded() {
         guard let stored = defaults.dictionary(forKey: Self.pendingKey) as? [String: String], !isActive else { return }
         let originals = stored.mapValues(Self.decode)
-        run(SystemDockGuard.commands(domain: SystemDockGuard.domain, values: originals) + ["/usr/bin/killall Dock"])
+        run(SystemDockGuard.commands(domain: SystemDockGuard.domain, values: originals) + Self.cleanup + ["/usr/bin/killall Dock"])
         defaults.removeObject(forKey: Self.pendingKey)
         Self.log.info("Systemdock aus früherem Lauf wiederhergestellt")
     }
@@ -29,7 +34,7 @@ final class SystemDockHider {
         defaults.set(originals.mapValues(Self.encode), forKey: Self.pendingKey)
         let process = Process()
         process.executableURL = URL(filePath: "/bin/sh")
-        process.arguments = ["-c", SystemDockGuard.watchdogScript(originals: originals)]
+        process.arguments = ["-c", SystemDockGuard.watchdogScript(originals: originals, cleanup: Self.cleanup)]
         let pipe = Pipe()
         process.standardInput = pipe
         do {

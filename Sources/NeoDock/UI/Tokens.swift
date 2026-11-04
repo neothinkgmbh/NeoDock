@@ -27,6 +27,8 @@ nonisolated enum DockMetrics {
     static let padding: CGFloat = 8
     static let corner: CGFloat = 24
     static let bottomGap: CGFloat = 8
+    /// Fenster, die in die Leiste ragen, werden nur gekürzt, wenn so viel von ihnen bleibt.
+    static let minFittedWindow: CGFloat = 200
     /// Automatische Widgetbreite: zwischen quadratisch und 3,5 Icon-Höhen, in Stufen, damit die
     /// Leiste nicht bei jeder Textänderung (neue Minute) ein Stück wandert.
     static let widgetMinWidth: CGFloat = icon

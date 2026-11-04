@@ -2,6 +2,7 @@ import Foundation
 
 /// Blendet das macOS-Dock aus (Autohide mit sehr langer Verzögerung) und stellt die ursprünglichen
 /// Werte absturzsicher wieder her: ein Wächter-Shellprozess blockiert auf einer Pipe zur App.
+/// `cleanup` läuft vor dem Neustart des Docks: Die angemeldete Dock-Fläche überlebt ihn nämlich.
 /// Endet die Pipe — App beendet, abgestürzt oder abgeschossen —, schreibt er die Originale zurück.
 public enum SystemDockGuard {
     public enum Original: Equatable, Sendable {
@@ -38,11 +39,16 @@ public enum SystemDockGuard {
         commands(domain: domain, values: ["autohide": .bool(true), "autohide-delay": .number(hiddenDelay)])
     }
 
+    /// Ein Pfad als ein einziges Shell-Wort, auch mit Leerzeichen oder Hochkomma.
+    public static func shellQuoted(_ text: String) -> String {
+        "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
     /// Shell-Skript des Wächters. `restart` startet das Dock neu (im Test: `true`).
-    public static func watchdogScript(domain: String = domain, originals: [String: Original],
+    public static func watchdogScript(domain: String = domain, originals: [String: Original], cleanup: [String] = [],
                                       restart: String = "/usr/bin/killall Dock") -> String {
         precondition(domain.allSatisfy { $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" }, "unsichere Domäne")
-        return (["trap '' INT HUP TERM", "read -r _"] + commands(domain: domain, values: originals) + [restart])
+        return (["trap '' INT HUP TERM", "read -r _"] + commands(domain: domain, values: originals) + cleanup + [restart])
             .joined(separator: "\n")
     }
 }

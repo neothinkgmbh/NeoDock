@@ -1,4 +1,5 @@
 import AppKit
+import NeoDockKit
 import SwiftUI
 
 /// Rahmenloses, nicht aktivierendes Panel über dem Systemdock, auf allen Spaces.
@@ -36,6 +37,8 @@ final class DockController {
     private lazy var card = CardController(level: DockPanel.dockLevel)
     private let settingsWindow = SettingsWindowController()
     private let systemDock = SystemDockHider()
+    private let reservation = DockReservation()
+    private var fittedDepth: CGFloat?
     private var screenObserver: NSObjectProtocol?
     private var mouseMonitors: [Any] = []
     /// Bei Autohide: ist die Leiste gerade sichtbar?
@@ -112,6 +115,7 @@ final class DockController {
         case .right:
             NSRect(x: shown ? bounds.maxX - gap - depth : bounds.maxX, y: visible.midY - length / 2, width: depth, height: length).integral
         }
+        updateReservation(on: screen)
         // Hinter der Kante kann ein weiterer Monitor liegen: Dort stünde die verborgene Leiste sichtbar.
         let coversNeighbour = !shown && NSScreen.screens.contains { $0 != screen && $0.frame.intersects(frame) }
         let alpha: CGFloat = coversNeighbour ? 0 : 1
@@ -130,6 +134,26 @@ final class DockController {
             panel.setFrame(frame, display: true)
             panel.alphaValue = alpha
         }
+    }
+
+    /// Wie das macOS-Dock: Eine dauerhaft sichtbare Leiste unten belegt ihre Fläche, Zoomen, Kacheln und
+    /// neue Fenster bleiben davor. Nur bei ausgeblendetem Dock: Sonst führt es seine Fläche selbst,
+    /// und nur dann gibt der Wächter sie nach einem Absturz wieder frei.
+    private func updateReservation(on screen: NSScreen) {
+        let length = model.barLength
+        guard settings.dockEdge == .bottom, settings.hideSystemDock, systemDock.isActive, !settings.autohide, length > 0 else {
+            reservation.release(DockArea.free(screen: screen.frame))
+            fittedDepth = nil
+            return
+        }
+        let depth = DockMetrics.bottomGap + model.barDepth + Space.xs
+        let area = DockArea.reserved(screen: screen.frame, length: length, depth: depth)
+        reservation.reserve(area)
+        // Offene Fenster lässt macOS stehen, sie blieben hinter der Leiste. Die Länge ändert sich mit
+        // jeder App und spielt für sie keine Rolle.
+        guard depth != fittedDepth else { return }
+        fittedDepth = depth
+        WindowFitter.fit(above: area, screen: screen.frame)
     }
 
     // MARK: Autohide — die Leiste fährt aus, wenn der Zeiger ihren Bildschirmrand berührt.
@@ -193,6 +217,7 @@ final class DockController {
 
     /// Beim regulären Beenden: Pipe schließen, der Wächter stellt das Dock wieder her.
     func shutdown() {
+        reservation.stop()
         systemDock.disable()
         model.attention.stop()
     }

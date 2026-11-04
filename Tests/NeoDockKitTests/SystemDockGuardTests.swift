@@ -52,6 +52,26 @@ import Testing
         _ = defaults("delete", domain)
     }
 
+    @Test("Aufräumen läuft nach den Originalen und vor dem Dock-Neustart")
+    func cleanupOrder() {
+        let script = SystemDockGuard.watchdogScript(domain: "d", originals: ["autohide": .bool(true)], cleanup: ["aufraeumen"], restart: "neustart")
+        #expect(script.hasSuffix("/usr/bin/defaults write d autohide -bool true\naufraeumen\nneustart"))
+    }
+
+    @Test("Pfad bleibt ein einziges Shell-Wort")
+    func quoting() throws {
+        let path = "/tmp/Neo Dock's App/x"
+        let process = Process()
+        let output = Pipe()
+        process.executableURL = URL(filePath: "/bin/sh")
+        process.arguments = ["-c", "set -- \(SystemDockGuard.shellQuoted(path)); echo $#; printf %s \"$1\""]
+        process.standardOutput = output
+        try process.run()
+        process.waitUntilExit()
+        let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        #expect(text == "1\n\(path)")
+    }
+
     @Test("Wächter ignoriert TERM und stellt trotzdem erst beim Pipe-Ende her")
     func ignoresTerm() throws {
         _ = defaults("delete", domain)
