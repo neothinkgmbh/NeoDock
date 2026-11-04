@@ -2,8 +2,8 @@ import AppKit
 import NeoDockKit
 import os
 
-/// Holt die App einer Sitzung nach vorne (die App, nicht den einzelnen Tab). Aktiviert wird über
-/// LaunchServices (openApplication), weil eine Hintergrund-App wie NeoDock andere Apps seit
+/// Holt die App einer Sitzung nach vorne, in Terminal.app auch den richtigen Tab. Aktiviert wird
+/// über LaunchServices (openApplication), weil eine Hintergrund-App wie NeoDock andere Apps seit
 /// macOS 14 nicht mehr direkt aktivieren darf.
 enum SessionJumper {
     nonisolated private static let log = Logger(subsystem: "ai.neothink.neodock", category: "jump")
@@ -19,6 +19,28 @@ enum SessionJumper {
         configuration.activates = true
         NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
             if let error { log.error("Aktivieren fehlgeschlagen: \(error.localizedDescription, privacy: .public)") }
+        }
+        if Bundle(url: url)?.bundleIdentifier == terminalID { selectTerminalTab(of: session) }
+    }
+
+    private static let terminalID = "com.apple.Terminal"
+
+    /// Ohne Automation-Freigabe bleibt es beim Aktivieren oben, das Skript schlägt dann nur fehl.
+    private static func selectTerminalTab(of session: AgentSession) {
+        let pid = session.tool == .claude ? session.pid : ProcessTree.codexCLI(in: session.cwd)
+        guard let tty = pid.flatMap(ProcessTable.terminalPath(of:)), let script = TerminalTab.selectScript(tty: tty) else { return }
+        let process = Process()
+        process.executableURL = URL(filePath: "/usr/bin/osascript")
+        process.arguments = ["-e", script]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        process.terminationHandler = { finished in
+            if finished.terminationStatus != 0 { log.notice("Terminal-Tab nicht gewählt, Status \(finished.terminationStatus)") }
+        }
+        do {
+            try process.run()
+        } catch {
+            log.error("osascript nicht startbar: \(error.localizedDescription, privacy: .public)")
         }
     }
 

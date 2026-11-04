@@ -48,8 +48,8 @@ final class DockController {
         host.sizingOptions = []
         panel.contentView = host
         model.onLayoutNeeded = { [weak self] in self?.scheduleLayout() }
-        model.onOpenCard = { [weak self] kind, midX in self?.openCard(kind, anchorX: midX) }
-        model.onToggleCard = { [weak self] kind, midX in self?.toggleCard(kind, anchorX: midX) }
+        model.onOpenCard = { [weak self] kind, anchor in self?.openCard(kind, anchor: anchor) }
+        model.onToggleCard = { [weak self] kind, anchor in self?.toggleCard(kind, anchor: anchor) }
         model.onCloseCard = { [weak self] in self?.card.close() }
         // Klicks in der Leiste schließen die Karte nicht pauschal — die Leiste entscheidet
         // (Umschalten, Ersetzen, Schließen); sonst öffnete ein zweiter Klick sie gleich wieder.
@@ -90,9 +90,11 @@ final class DockController {
         // Prüfschalter NEODOCK_MAX_WIDTH=<pt>: so tun, als wäre der Bildschirm nur so breit.
         var visible = screen.visibleFrame
         if let simulated = Self.simulatedWidth { visible = visible.insetBy(dx: max(0, (visible.width - simulated) / 2), dy: 0) }
-        fitIcons(into: visible.width * DockMetrics.maxScreenShare)
+        let edge = settings.dockEdge
+        let available = edge.isVertical ? visible.height : visible.width
+        fitIcons(into: available * DockMetrics.maxScreenShare)
         let reserve = model.iconSize * CGFloat(settings.effectiveScale - 1) * DockMetrics.reserveIcons
-        let width = min(max(model.barWidth, DockMetrics.icon) + reserve, visible.width)
+        let length = min(max(model.barLength, DockMetrics.icon) + reserve, available)
         // Will eine App Aufmerksamkeit, fährt die Leiste hoch, sonst bliebe das Hüpfen unsichtbar.
         // Das zählt als normales Einblenden: Am Ende entscheidet `mouseMoved` wie sonst auch, ob sie
         // wegfährt, und lässt sie stehen, wenn der Zeiger darauf liegt oder eine Karte offen ist.
@@ -101,8 +103,15 @@ final class DockController {
         if hadAttention, !wantsAttention { mouseMoved() }
         hadAttention = wantsAttention
         let shown = !settings.autohide || isRevealed
-        let y = shown ? screen.frame.minY + DockMetrics.bottomGap : screen.frame.minY - model.panelHeight
-        let frame = NSRect(x: visible.midX - width / 2, y: y, width: width, height: model.panelHeight).integral
+        let depth = model.panelDepth, gap = DockMetrics.bottomGap, bounds = screen.frame
+        let frame: NSRect = switch edge {
+        case .bottom:
+            NSRect(x: visible.midX - length / 2, y: shown ? bounds.minY + gap : bounds.minY - depth, width: length, height: depth).integral
+        case .left:
+            NSRect(x: shown ? bounds.minX + gap : bounds.minX - depth, y: visible.midY - length / 2, width: depth, height: length).integral
+        case .right:
+            NSRect(x: shown ? bounds.maxX - gap - depth : bounds.maxX, y: visible.midY - length / 2, width: depth, height: length).integral
+        }
         guard frame != panel.frame else { return }
         if panel.frame.width == frame.width, panel.frame.height == frame.height {
             NSAnimationContext.runAnimationGroup { context in
@@ -114,7 +123,7 @@ final class DockController {
         }
     }
 
-    // MARK: Autohide — die Leiste fährt hoch, wenn der Zeiger den unteren Rand berührt.
+    // MARK: Autohide — die Leiste fährt aus, wenn der Zeiger ihren Bildschirmrand berührt.
 
     private func installMouseMonitors() {
         let mask: NSEvent.EventTypeMask = [.mouseMoved, .leftMouseDragged]
@@ -131,13 +140,28 @@ final class DockController {
 
     private func mouseMoved() {
         guard settings.autohide, let screen else { return }
-        let location = NSEvent.mouseLocation
-        let onScreen = location.x >= screen.frame.minX && location.x <= screen.frame.maxX
-        if !isRevealed, onScreen, location.y <= screen.frame.minY + DockMetrics.revealEdge {
+        let location = NSEvent.mouseLocation, bounds = screen.frame
+        let edge = settings.dockEdge
+        // An der Seite zählen beide Achsen: Links neben dem Bildschirm kann ein zweiter Monitor liegen.
+        let onScreen = location.x >= bounds.minX && location.x <= bounds.maxX
+            && (!edge.isVertical || (location.y >= bounds.minY && location.y <= bounds.maxY))
+        let atEdge = switch edge {
+        case .bottom: location.y <= bounds.minY + DockMetrics.revealEdge
+        case .left: location.x <= bounds.minX + DockMetrics.revealEdge
+        case .right: location.x >= bounds.maxX - DockMetrics.revealEdge
+        }
+        // An der Seite zählt die Reichweite der Icons: Das Fenster ist des Namensschilds wegen breit.
+        let reach = model.iconReach + DockMetrics.hideMargin
+        let isAway = switch edge {
+        case .bottom: location.y > panel.frame.maxY + DockMetrics.hideMargin
+        case .left: location.x > panel.frame.minX + reach
+        case .right: location.x < panel.frame.maxX - reach
+        }
+        if !isRevealed, onScreen, atEdge {
             hideTask?.cancel()
             isRevealed = true
             layout()
-        } else if isRevealed, location.y > panel.frame.maxY + DockMetrics.hideMargin || !onScreen {
+        } else if isRevealed, isAway || !onScreen {
             guard hideTask == nil, !card.isVisible else { return }
             hideTask = Task { [weak self] in
                 try? await Task.sleep(for: DockMetrics.hideDelay)
@@ -171,14 +195,14 @@ final class DockController {
     static let simulatedWidth = ProcessInfo.processInfo.environment["NEODOCK_MAX_WIDTH"].flatMap(Double.init).map { CGFloat($0) }
 
     private func fitIcons(into maxWidth: CGFloat) {
-        guard model.barWidth > 0, model.measuredIcon > 0 else { return }
+        guard model.barLength > 0, model.measuredIcon > 0 else { return }
         // Sicherung gegen Pendeln (Rundungsstufen in Textbreiten): war die Leiste bei einer Größe zu
         // breit, wird sie nicht wieder so groß, solange sich an Inhalt und Platz nichts ändert.
         let inputs = [maxWidth, CGFloat(model.apps.apps.count), CGFloat(settings.stackFolders.count),
-                      CGFloat(model.currentPage.count), CGFloat(settings.maxIconSize)]
+                      CGFloat(model.currentPage.count), CGFloat(model.badges.minimized.count), CGFloat(settings.maxIconSize)]
         if inputs != fitInputs { fitInputs = inputs; tooWideAt = nil }
-        if model.barWidth > maxWidth { tooWideAt = min(tooWideAt ?? .infinity, model.measuredIcon) }
-        var fitting = (model.measuredIcon * maxWidth / model.barWidth).rounded(.down)
+        if model.barLength > maxWidth { tooWideAt = min(tooWideAt ?? .infinity, model.measuredIcon) }
+        var fitting = (model.measuredIcon * maxWidth / model.barLength).rounded(.down)
         if let tooWideAt { fitting = min(fitting, tooWideAt - 1) }
         let size = min(CGFloat(settings.maxIconSize), max(DockMetrics.minIcon, fitting))
         if abs(size - model.iconSize) >= 1 { model.iconSize = size }
@@ -190,16 +214,16 @@ final class DockController {
     /// Prüfschalter NEODOCK_LOG_ICONS=1: Mitte jedes App-Icons in Bildschirmkoordinaten (Ursprung
     /// oben links, wie CGEvent) — für nachgestellte Ziehvorgänge.
     func logIconCenters() {
-        guard let screen = panel.screen ?? self.screen else { return }
+        guard !settings.dockEdge.isVertical, let screen = panel.screen ?? self.screen else { return }
         let size = model.iconSize, step = size + DockMetrics.iconSpacing
-        let barLeft = panel.frame.midX - model.barWidth / 2
+        let barLeft = panel.frame.midX - model.barLength / 2
         for (i, app) in model.apps.apps.enumerated() {
             let x = barLeft + DockMetrics.padding + CGFloat(i) * step + size / 2
             let y = screen.frame.maxY - (panel.frame.minY + DockMetrics.padding + size / 2)
             NSLog("NeoDock ICON \(app.name)|\(Int(x))|\(Int(y))")
         }
         // Stapel und Papierkorb rechts (in Ruhe): von der rechten Kante der Leiste nach innen.
-        let barRight = panel.frame.midX + model.barWidth / 2 - DockMetrics.padding - Space.xxs
+        let barRight = panel.frame.midX + model.barLength / 2 - DockMetrics.padding - Space.xxs
         let items = model.settings.stackFolders.map { URL(filePath: $0).lastPathComponent } + ["Papierkorb"]
         for (i, name) in items.reversed().enumerated() {
             let x = barRight - size / 2 - CGFloat(i) * (size + DockMetrics.stackSpacing)
@@ -214,22 +238,28 @@ final class DockController {
 
     func toggleSessionsCard() {
         if card.isVisible { card.close(); return }
-        openCard(.sessions, anchorX: panel.frame.width / 2)
+        openCard(.sessions, anchor: (settings.dockEdge.isVertical ? panel.frame.height : panel.frame.width) / 2)
     }
 
     private var openKind: CardKind?
 
-    func toggleCard(_ kind: CardKind, anchorX: CGFloat) {
-        if card.isVisible, openKind == kind { card.close() } else { openCard(kind, anchorX: anchorX) }
+    func toggleCard(_ kind: CardKind, anchor: CGFloat) {
+        if card.isVisible, openKind == kind { card.close() } else { openCard(kind, anchor: anchor) }
     }
 
-    func openCard(_ kind: CardKind, anchorX: CGFloat) {
+    /// `anchor`: Mitte der Kachel entlang der Leiste, in Fensterkoordinaten (y von oben).
+    func openCard(_ kind: CardKind, anchor: CGFloat) {
         if card.isVisible, openKind == kind { return }
         openKind = kind
-        let screenX = panel.frame.minX + anchorX
-        let bottom = panel.frame.minY + model.barHeight + Space.sm
+        let bar = panel.frame, depth = model.barDepth, edge = settings.dockEdge
         card.show(CardContent(kind: kind, model: model, close: { [weak self] in self?.card.close() }),
-                  needsKeyboard: kind.needsKeyboard, anchorX: screenX, bottom: bottom, screen: panel.screen ?? screen)
+                  needsKeyboard: kind.needsKeyboard, origin: { size in
+            switch edge {
+            case .bottom: NSPoint(x: bar.minX + anchor - size.width / 2, y: bar.minY + depth + Space.sm)
+            case .left: NSPoint(x: bar.minX + depth + Space.sm, y: bar.maxY - anchor - size.height / 2)
+            case .right: NSPoint(x: bar.maxX - depth - Space.sm - size.width, y: bar.maxY - anchor - size.height / 2)
+            }
+        }, screen: panel.screen ?? screen)
     }
 
     func openSettings(tab: SettingsTab = .general) {

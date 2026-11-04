@@ -15,7 +15,7 @@
 <key>NSHighResolutionCapable</key><true/>
 <key>NSPrincipalClass</key><string>NSApplication</string>
 <key>LSUIElement</key><true/>
-<key>NSAppleEventsUsageDescription</key><string>NeoDock fragt den Finder, ob etwas im Papierkorb liegt, und leert ihn auf deinen Wunsch.</string>
+<key>NSAppleEventsUsageDescription</key><string>NeoDock fragt den Finder, ob etwas im Papierkorb liegt, und leert ihn auf deinen Wunsch. Im Terminal wählt es den Tab einer Agenten-Sitzung aus.</string>
 <key>UTExportedTypeDeclarations</key><array><dict>
 <key>UTTypeIdentifier</key><string>ai.neothink.neodock.item</string>
 <key>UTTypeDescription</key><string>NeoDock-Leisteneintrag</string>

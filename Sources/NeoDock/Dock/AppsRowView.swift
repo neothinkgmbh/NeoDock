@@ -12,6 +12,7 @@ final class AppsRowView: NSView, NSDraggingSource {
     // MARK: Eingaben (aus SwiftUI)
     var apps: [DockApp] = [] { didSet { if apps != oldValue { rebuildLayers() } } }
     var iconSize: CGFloat = DockMetrics.icon { didSet { if iconSize != oldValue { rebuildLayers() } } }
+    var edge: DockEdge = .bottom { didSet { if edge != oldValue { rebuildLayers() } } }
     var maxScale: CGFloat = 1.6
     /// Apps, deren Icon gerade durchgehend hüpft: sie starten oder wollen Aufmerksamkeit.
     var bouncing: Set<String> = [] {
@@ -53,6 +54,7 @@ final class AppsRowView: NSView, NSDraggingSource {
     /// Prüfschalter NEODOCK_LOG_BOUNCE=1: protokolliert die echte Hubhöhe je Bild.
     private static let logsBounce = ProcessInfo.processInfo.environment["NEODOCK_LOG_BOUNCE"] == "1"
     private let nameTag = NameTagView()
+    private var nameTagSize: NSSize = .zero
 
     /// Bildstatistik für den Prüfschalter: Bilder, verpasste Bilder, längste Arbeit pro Bild.
     nonisolated(unsafe) static var stats = (frames: 0, missed: 0, maxWorkMs: 0.0)
@@ -76,8 +78,58 @@ final class AppsRowView: NSView, NSDraggingSource {
 
     private var step: CGFloat { iconSize + DockMetrics.iconSpacing }
     private var restWidth: CGFloat { apps.isEmpty ? 0 : CGFloat(apps.count) * step - DockMetrics.iconSpacing }
-    private var restLeft: CGFloat { (bounds.width - restWidth) / 2 }
-    private func restCenter(_ i: Int) -> CGFloat { restLeft + CGFloat(i) * step + iconSize / 2 }
+    private var restStart: CGFloat { (mainLength - restWidth) / 2 }
+    private func restCenter(_ i: Int) -> CGFloat { restStart + CGFloat(i) * step + iconSize / 2 }
+
+    // Gerechnet wird entlang der Hauptachse m: Sie wächst mit dem Index, unten nach rechts, an der
+    // Seite nach unten. Erst diese Helfer setzen sie in Punkte der View um.
+    private var mainLength: CGFloat { edge.isVertical ? bounds.height : bounds.width }
+    private func main(of point: CGPoint) -> CGFloat { edge.isVertical ? bounds.height - point.y : point.x }
+
+    /// Fläche um m, von der Bildschirmkante aus `depth` tief.
+    private func rect(around m: CGFloat, length: CGFloat, depth: CGFloat) -> CGRect {
+        switch edge {
+        case .bottom: CGRect(x: m - length / 2, y: 0, width: length, height: depth)
+        case .left: CGRect(x: 0, y: bounds.height - m - length / 2, width: depth, height: length)
+        case .right: CGRect(x: bounds.width - depth, y: bounds.height - m - length / 2, width: depth, height: length)
+        }
+    }
+
+    private func iconPosition(_ m: CGFloat) -> CGPoint {
+        switch edge {
+        case .bottom: CGPoint(x: m, y: 0)
+        case .left: CGPoint(x: 0, y: bounds.height - m)
+        case .right: CGPoint(x: bounds.width, y: bounds.height - m)
+        }
+    }
+
+    /// Der Laufpunkt liegt auf der Seite des Bildschirmrands.
+    private func dotPosition(_ m: CGFloat) -> CGPoint {
+        let inset = DockMetrics.runDot + Space.xxs
+        return switch edge {
+        case .bottom: CGPoint(x: m, y: -inset)
+        case .left: CGPoint(x: -inset, y: bounds.height - m)
+        case .right: CGPoint(x: bounds.width + inset, y: bounds.height - m)
+        }
+    }
+
+    private var iconAnchor: CGPoint {
+        switch edge {
+        case .bottom: CGPoint(x: 0.5, y: 0)
+        case .left: CGPoint(x: 0, y: 0.5)
+        case .right: CGPoint(x: 1, y: 0.5)
+        }
+    }
+
+    /// An der Seite ist die View des Namensschilds wegen breit; vergrößert wird nur nahe den Icons.
+    private var hoverArea: CGRect {
+        let reach = iconSize * maxScale
+        return switch edge {
+        case .bottom: bounds
+        case .left: CGRect(x: 0, y: 0, width: reach, height: bounds.height)
+        case .right: CGRect(x: bounds.width - reach, y: 0, width: reach, height: bounds.height)
+        }
+    }
 
     override func layout() {
         super.layout()
@@ -93,7 +145,7 @@ final class AppsRowView: NSView, NSDraggingSource {
         dotLayers.forEach { $0.removeFromSuperlayer() }
         iconLayers = apps.map { app in
             let l = CALayer()
-            l.anchorPoint = CGPoint(x: 0.5, y: 0)
+            l.anchorPoint = iconAnchor
             l.contentsGravity = .resizeAspect
             l.contents = image(for: app).normal
             l.actions = Self.noActions
@@ -118,6 +170,7 @@ final class AppsRowView: NSView, NSDraggingSource {
         updateBadges()
         updateDotColor()
         applyLayout(animated: false)
+        updateTrackingAreas()
         // Neue Ebenen, gleiche Sprünge: die Startzeit hält die Bahn in Phase.
         hops.keys.forEach(addHopAnimation)
     }
@@ -201,8 +254,10 @@ final class AppsRowView: NSView, NSDraggingSource {
     override func updateTrackingAreas() {
         super.updateTrackingAreas()
         trackingAreas.forEach(removeTrackingArea)
-        addTrackingArea(NSTrackingArea(rect: .zero, options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
-                                       owner: self, userInfo: nil))
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeAlways]
+        addTrackingArea(edge.isVertical
+            ? NSTrackingArea(rect: hoverArea, options: options, owner: self, userInfo: nil)
+            : NSTrackingArea(rect: .zero, options: options.union(.inVisibleRect), owner: self, userInfo: nil))
     }
 
     override func mouseEntered(with event: NSEvent) { startLink() }
@@ -232,10 +287,10 @@ final class AppsRowView: NSView, NSDraggingSource {
 
     /// Zeiger in View-Koordinaten, solange er über der View ist; sonst nil.
     private func currentPointer() -> CGFloat? {
-        if let simulated = simulatedPointer { return restLeft + simulated }
+        if let simulated = simulatedPointer { return restStart + simulated }
         guard let window else { return nil }
         let local = convert(window.convertPoint(fromScreen: NSEvent.mouseLocation), from: nil)
-        return bounds.contains(local) ? local.x : nil
+        return hoverArea.contains(local) ? main(of: local) : nil
     }
 
     private func applyLayout(animated: Bool) {
@@ -252,18 +307,18 @@ final class AppsRowView: NSView, NSDraggingSource {
         CATransaction.setDisableActions(!animated)
         for (i, l) in iconLayers.enumerated() {
             let s = CGFloat(scales[i])
-            let x = restCenter(i) + CGFloat(r.shifts[i])
+            let m = restCenter(i) + CGFloat(r.shifts[i])
             l.bounds = CGRect(x: 0, y: 0, width: iconSize, height: iconSize)
-            l.position = CGPoint(x: x, y: 0)
+            l.position = iconPosition(m)
             let dropBoost: CGFloat = dropTargetIndex == i ? DockMetrics.dropTargetScale : 1
             l.transform = CATransform3DMakeScale(s * dropBoost, s * dropBoost, 1)
             l.opacity = apps[i].key == draggedKey ? 0.35 : 1
             l.contents = pressedIndex == i ? image(for: apps[i]).pressed : image(for: apps[i]).normal
-            dotLayers[i].position = CGPoint(x: x, y: -DockMetrics.runDot - Space.xxs)
+            dotLayers[i].position = dotPosition(m)
             dotLayers[i].isHidden = !apps[i].isRunning
-            frames.append(CGRect(x: x - iconSize * s / 2, y: 0, width: iconSize * s, height: iconSize * s))
+            frames.append(rect(around: m, length: iconSize * s, depth: iconSize * s))
             let hopRoom = hops[apps[i].key] == nil ? 0 : iconSize * DockMetrics.bounceHeight
-            hits.append(CGRect(x: x - iconSize * s / 2, y: 0, width: iconSize * s, height: iconSize * s + hopRoom))
+            hits.append(rect(around: m, length: iconSize * s, depth: iconSize * s + hopRoom))
             restingTops.append(iconSize * s)
         }
         CATransaction.commit()
@@ -281,12 +336,19 @@ final class AppsRowView: NSView, NSDraggingSource {
             return
         }
         // Nächstes Icon zum Zeiger (ohne Lücken), damit das Schild nicht flackert.
-        let index = min(apps.count - 1, max(0, Int(((x - restLeft - iconSize / 2) / step).rounded())))
-        nameTag.text = apps[index].name
-        let size = nameTag.fittingSize
+        let index = min(apps.count - 1, max(0, Int(((x - restStart - iconSize / 2) / step).rounded())))
+        if nameTag.text != apps[index].name {
+            nameTag.text = apps[index].name
+            nameTagSize = nameTag.fittingSize
+        }
+        let size = nameTagSize
         let frame = frames[index]
-        nameTag.frame = CGRect(x: frame.midX - size.width / 2, y: restingTops[index] + Space.sm,
-                               width: size.width, height: size.height)
+        let gap = restingTops[index] + Space.sm
+        nameTag.frame = switch edge {
+        case .bottom: CGRect(x: frame.midX - size.width / 2, y: gap, width: size.width, height: size.height)
+        case .left: CGRect(x: gap, y: frame.midY - size.height / 2, width: size.width, height: size.height)
+        case .right: CGRect(x: bounds.width - gap - size.width, y: frame.midY - size.height / 2, width: size.width, height: size.height)
+        }
         nameTag.isHidden = false
     }
 
@@ -327,8 +389,8 @@ final class AppsRowView: NSView, NSDraggingSource {
     private func addHopAnimation(_ key: String) {
         guard let start = hops[key], let index = apps.firstIndex(where: { $0.key == key }) else { return }
         let height = iconSize * DockMetrics.bounceHeight
-        let hop = CAKeyframeAnimation(keyPath: "position.y")
-        hop.values = Self.hopCurve.map { $0 * height }
+        let hop = CAKeyframeAnimation(keyPath: edge.isVertical ? "position.x" : "position.y")
+        hop.values = Self.hopCurve.map { $0 * (edge == .right ? -height : height) }
         hop.duration = Self.hopPeriod
         hop.beginTime = start
         hop.repeatCount = bouncing.contains(key) ? .infinity : 1
@@ -342,7 +404,8 @@ final class AppsRowView: NSView, NSDraggingSource {
         while !Task.isCancelled {
             try? await Task.sleep(for: .milliseconds(50))
             for (app, layer) in zip(apps, iconLayers) where hops[app.key] != nil {
-                NSLog("NeoDock HOP \(app.name) \(Int(layer.presentation()?.position.y ?? 0))")
+                guard let shown = layer.presentation()?.position else { continue }
+                NSLog("NeoDock HOP \(app.name) \(Int(abs(shown.x - layer.position.x) + abs(shown.y - layer.position.y)))")
             }
         }
     }
@@ -403,9 +466,9 @@ final class AppsRowView: NSView, NSDraggingSource {
         item.setString(app.url.path, forType: NSPasteboard.PasteboardType(UTType.neoDockItem.identifier))
         let dragging = NSDraggingItem(pasteboardWriter: item)
         // Ein Icon im Sprung steht nicht an seiner Modell-Position.
-        var frame = visibleFrames[index]
-        frame.origin.y = iconLayers[index].presentation()?.position.y ?? 0
-        dragging.setDraggingFrame(frame, contents: app.icon)
+        let layer = iconLayers[index], shown = layer.presentation()?.position ?? layer.position
+        dragging.setDraggingFrame(visibleFrames[index].offsetBy(dx: shown.x - layer.position.x, dy: shown.y - layer.position.y),
+                                  contents: app.icon)
         draggedKey = app.key
         pressedIndex = nil
         model?.apps.setDragging(app)
@@ -436,7 +499,7 @@ final class AppsRowView: NSView, NSDraggingSource {
 
     override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
         let point = convert(sender.draggingLocation, from: nil)
-        let nearest = apps.isEmpty ? nil : min(apps.count - 1, max(0, Int(((point.x - restLeft - iconSize / 2) / step).rounded())))
+        let nearest = apps.isEmpty ? nil : min(apps.count - 1, max(0, Int(((main(of: point) - restStart - iconSize / 2) / step).rounded())))
         if sender.draggingPasteboard.types?.contains(internalType) == true {
             if let key = draggedKey, let dragged = apps.first(where: { $0.key == key }), let nearest, apps[nearest].key != key {
                 model?.apps.move(dragged, toward: apps[nearest])
@@ -614,6 +677,7 @@ struct AppsRow: NSViewRepresentable {
     }
 
     func updateNSView(_ view: AppsRowView, context: Context) {
+        view.edge = model.edge
         view.maxScale = CGFloat(model.settings.effectiveScale)
         view.iconSize = model.iconSize
         view.apps = model.apps.apps

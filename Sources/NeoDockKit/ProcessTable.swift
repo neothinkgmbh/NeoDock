@@ -31,6 +31,13 @@ public enum ProcessTable {
         return device != noDevice
     }
 
+    /// Terminal eines Prozesses, z. B. `/dev/ttys000`.
+    public static func terminalPath(of pid: pid_t) -> String? {
+        guard let device = kinfo(pid)?.kp_eproc.e_tdev, device != noDevice,
+              let name = devname(device, S_IFCHR) else { return nil }
+        return "/dev/" + String(cString: name)
+    }
+
     public static func workingDirectory(of pid: pid_t) -> String? {
         var info = proc_vnodepathinfo()
         let size = Int32(MemoryLayout<proc_vnodepathinfo>.size)

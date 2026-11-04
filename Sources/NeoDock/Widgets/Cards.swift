@@ -242,6 +242,7 @@ struct FolderCard: View {
     let close: () -> Void
     @State private var items: [FolderListing.Item]?
     @State private var isLoaded = false
+    @Environment(\.cardController) private var cardController
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.sm) {
@@ -249,27 +250,13 @@ struct FolderCard: View {
             if !isLoaded {
                 ProgressView().frame(maxWidth: .infinity)
             } else if let items, !items.isEmpty {
+                let asGrid = FolderListing.holdsApps(items.map(\.url))
+                let rows = asGrid ? (items.count + DockMetrics.folderGridColumns - 1) / DockMetrics.folderGridColumns : items.count
+                let contentHeight = CGFloat(rows) * (asGrid ? DockMetrics.folderCellHeight : DockMetrics.folderRowHeight)
                 ScrollView {
-                    VStack(spacing: Space.xxs) {
-                        ForEach(items) { item in
-                            CardRow(action: { NSWorkspace.shared.open(item.url); close() }) {
-                                HStack(spacing: Space.sm) {
-                                    Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
-                                        .resizable().frame(width: 24, height: 24)
-                                    Text(item.url.lastPathComponent).lineLimit(1)
-                                    Spacer(minLength: Space.sm)
-                                    Text(item.modified.formatted(.relative(presentation: .named)))
-                                        .font(.caption).foregroundStyle(.tertiary)
-                                }
-                            }
-                            // Aus dem Stapel herausziehen — in Finder, Mail, auf den Schreibtisch …
-                            .onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() } preview: {
-                                Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path))
-                                    .resizable().frame(width: 48, height: 48)
-                            }
-                        }
-                    }
+                    if asGrid { grid(items) } else { list(items) }
                 }
+                .frame(height: min(contentHeight, DockMetrics.folderContentMaxHeight))
                 .scrollBounceBehavior(.basedOnSize)
             } else {
                 ContentUnavailableView(items == nil ? "Kein Zugriff" : "Leer", systemImage: "folder",
@@ -284,6 +271,61 @@ struct FolderCard: View {
             items = await Task.detached(priority: .userInitiated) { FolderListing.recent(in: folder) }.value
             isLoaded = true
         }
+        // Beim Öffnen stand hier nur der Ladekreis, die Karte war entsprechend niedrig.
+        .onChange(of: isLoaded) { DispatchQueue.main.async { cardController?.refit() } }
+    }
+
+    private func list(_ items: [FolderListing.Item]) -> some View {
+        LazyVStack(spacing: 0) {
+            ForEach(items) { item in
+                CardRow(action: { open(item) }) {
+                    HStack(spacing: Space.sm) {
+                        icon(item, size: 24)
+                        Text(FolderListing.displayName(item.url)).lineLimit(1)
+                        Spacer(minLength: Space.sm)
+                        Text(item.modified.formatted(.relative(presentation: .named)))
+                            .font(.caption).foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(height: DockMetrics.folderRowHeight)
+                .draggableFile(item, preview: icon(item, size: DockMetrics.folderGridIcon))
+            }
+        }
+    }
+
+    private func grid(_ items: [FolderListing.Item]) -> some View {
+        let columns = Array(repeating: GridItem(.flexible(), spacing: Space.xs), count: DockMetrics.folderGridColumns)
+        return LazyVGrid(columns: columns, spacing: 0) {
+            ForEach(items) { item in
+                CardRow(action: { open(item) }) {
+                    VStack(spacing: Space.xs) {
+                        icon(item, size: DockMetrics.folderGridIcon)
+                        Text(FolderListing.displayName(item.url))
+                            .font(.caption).lineLimit(1).truncationMode(.middle)
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: DockMetrics.folderCellHeight)
+                .help(FolderListing.displayName(item.url))
+                .draggableFile(item, preview: icon(item, size: DockMetrics.folderGridIcon))
+            }
+        }
+    }
+
+    private func icon(_ item: FolderListing.Item, size: CGFloat) -> some View {
+        Image(nsImage: NSWorkspace.shared.icon(forFile: item.url.path)).resizable().frame(width: size, height: size)
+    }
+
+    private func open(_ item: FolderListing.Item) {
+        NSWorkspace.shared.open(item.url)
+        close()
+    }
+}
+
+private extension View {
+    /// Aus dem Stapel herausziehen — in Finder, Mail, auf den Schreibtisch …
+    func draggableFile(_ item: FolderListing.Item, preview: some View) -> some View {
+        onDrag { NSItemProvider(contentsOf: item.url) ?? NSItemProvider() } preview: { preview }
     }
 }
 

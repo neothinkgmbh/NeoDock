@@ -16,15 +16,18 @@ struct WidgetTile<Value: View>: View {
     var isActive = false
     @ViewBuilder let value: Value
     @State private var isPressed = false
-    @State private var midX: CGFloat = 0
+    @State private var anchor: CGFloat = 0
     @Environment(\.widgetWidth) private var width
     @Environment(\.widgetScale) private var scale
     @Environment(\.widgetStyle) private var style
     @Environment(DockModel.self) private var model: DockModel?
 
+    private var isVertical: Bool { model?.edge.isVertical == true }
+
     var body: some View {
+        let vertical = isVertical
         content
-            .frame(height: DockMetrics.icon * scale)
+            .frame(minHeight: DockMetrics.icon * scale, maxHeight: vertical ? nil : DockMetrics.icon * scale)
             .background {
                 RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale)
                     .fill(.quaternary.opacity(0.35))
@@ -43,11 +46,11 @@ struct WidgetTile<Value: View>: View {
             .contentShape(RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale))
             .scaleEffect(isPressed ? DockMetrics.pressedTileScale : 1)
             .animation(.easeOut(duration: 0.12), value: isPressed)
-            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { midX = $0 }
+            .onGeometryChange(for: CGFloat.self) { vertical ? $0.frame(in: .global).midY : $0.frame(in: .global).midX } action: { anchor = $0 }
             .onTapGesture {
-                if let tapAt { tapAt(midX) } else { model?.onCloseCard?(); tap() }
+                if let tapAt { tapAt(anchor) } else { model?.onCloseCard?(); tap() }
             }
-            .onLongPressGesture(minimumDuration: DockMetrics.longPress, perform: { hold?(midX) },
+            .onLongPressGesture(minimumDuration: DockMetrics.longPress, perform: { hold?(anchor) },
                                 onPressingChanged: { isPressed = $0 })
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
@@ -58,6 +61,9 @@ struct WidgetTile<Value: View>: View {
         if style == .iconOnly, let face {
             face.scaleEffect(scale * DockMetrics.iconOnlyFaceScale)
                 .frame(width: DockMetrics.icon * scale, height: DockMetrics.icon * scale)
+        } else if isVertical {
+            // Ohne Gesicht (Sitzungen): so breit wie die Leiste, die Höhe folgt dem Inhalt.
+            value.padding(.vertical, Space.sm * scale).frame(width: DockMetrics.icon * scale)
         } else {
             textContent
         }
@@ -125,9 +131,10 @@ struct WidgetsRow: View {
     var body: some View {
         let pages = model.pages
         let page = model.currentPage
-        HStack(spacing: DockMetrics.iconSpacing) {
+        let tileStack = model.edge.stack(spacing: DockMetrics.iconSpacing)
+        tileStack {
             if pages.count > 1 {
-                PagerButton(index: min(model.widgetPage, pages.count - 1), count: pages.count) {
+                PagerButton(index: min(model.widgetPage, pages.count - 1), count: pages.count, vertical: model.edge.isVertical) {
                     withAnimation(.snappy) { model.nextPage() }
                 }
             }
@@ -141,7 +148,7 @@ struct WidgetsRow: View {
         }
         .environment(\.widgetWidth, model.settings.widgetWidth)
         .environment(\.widgetScale, model.widgetScale)
-        .environment(\.widgetStyle, model.settings.widgetStyle)
+        .environment(\.widgetStyle, model.edge.isVertical ? .iconOnly : model.settings.widgetStyle)
         .environment(model)
     }
 }
@@ -149,13 +156,14 @@ struct WidgetsRow: View {
 struct PagerButton: View {
     let index: Int
     let count: Int
+    let vertical: Bool
     let action: () -> Void
     @Environment(\.widgetScale) private var scale
 
     var body: some View {
         Button(action: action) {
             VStack(spacing: Space.xs) {
-                Image(systemName: "chevron.left.chevron.right").font(.callout.weight(.semibold))
+                Image(systemName: vertical ? "chevron.up.chevron.down" : "chevron.left.chevron.right").font(.callout.weight(.semibold))
                 HStack(spacing: Space.xxs) {
                     ForEach(0..<count, id: \.self) { i in
                         Circle().fill(i == index ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
@@ -163,7 +171,8 @@ struct PagerButton: View {
                     }
                 }
             }
-            .frame(width: DockMetrics.pagerWidth * scale, height: DockMetrics.icon * scale)
+            .frame(width: (vertical ? DockMetrics.icon : DockMetrics.pagerWidth) * scale,
+                   height: (vertical ? DockMetrics.pagerWidth : DockMetrics.icon) * scale)
             .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: DockMetrics.tileCorner * scale))
             .contentShape(Rectangle())
         }

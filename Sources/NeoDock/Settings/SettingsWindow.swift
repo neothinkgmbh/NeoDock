@@ -73,6 +73,9 @@ private struct GeneralSettings: View {
                   maximumValueLabel: { Image(systemName: "app").imageScale(.large) }
             }
             Section("Aussehen") {
+                Picker("Position", selection: $settings.dockEdge) {
+                    ForEach(DockEdge.allCases) { Text($0.title).tag($0) }
+                }
                 Picker("Glas", selection: $settings.glassStyle) {
                     ForEach(GlassStyle.allCases) { Text($0.title).tag($0) }
                 }
@@ -133,10 +136,11 @@ private struct WidgetSettings: View {
                 Picker("Darstellung", selection: $settings.widgetStyle) {
                     ForEach(WidgetStyle.allCases) { Text($0.title).tag($0) }
                 }
+                .disabled(settings.dockEdge.isVertical)
                 Picker("Breite (mit Text)", selection: $settings.widgetWidth) {
                     ForEach(WidgetWidth.allCases) { Text($0.title).tag($0) }
                 }
-                .disabled(settings.widgetStyle == .iconOnly)
+                .disabled(settings.widgetStyle == .iconOnly || settings.dockEdge.isVertical)
                 Stepper("Widgets je Seite: \(settings.widgetsPerPage)", value: $settings.widgetsPerPage,
                         in: DockSettings.perPageRange)
                 Button("Standard wiederherstellen", action: settings.resetWidgets)

@@ -12,8 +12,9 @@ A Liquid Glass dock for macOS with widgets next to your apps — and a live view
 - Liquid Glass bar with your pinned and running apps, magnification under the pointer (Core Animation, display-synced)
 - Click, ⌘-click (show in Finder), ⌥-click (hide others), launch and attention bounce, running indicators, badge counts (unread mail …)
 - Drag to reorder, drag out to remove, drop an app to pin it, drop files on an app to open them
-- Folder stacks on the right (drop a folder to add it, drop files onto it to move them), Trash with full/empty state
-- Right-click menus like the system Dock, optional auto-hide, scales down on small screens
+- Folder stacks (drop a folder to add it, drop files onto it to move them), a grid for folders of apps, Trash with full/empty state
+- Minimized windows in the bar, click to bring them back
+- Right-click menus like the system Dock, optional auto-hide, bottom, left or right of the screen, scales down on small screens
 
 **Widgets** (click = quick action, press and hold = card)
 - **Agent sessions** — Claude Code (terminal, VS Code, Claude app Code and Cowork) and Codex sessions on this Mac: working, waiting for you, ready. Click jumps to the session that needs you.

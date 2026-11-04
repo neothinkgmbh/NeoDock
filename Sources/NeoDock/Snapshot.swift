@@ -27,7 +27,7 @@ enum Snapshot {
             }
             for name in names {
                 guard let kind = card(named: String(name)) else { continue }
-                dock.openCard(kind, anchorX: 0)
+                dock.openCard(kind, anchor: 0)
                 try? await Task.sleep(for: .seconds(1))
                 dock.snapshotCard(to: directory.appending(path: "card-\(name).png"))
             }
@@ -50,6 +50,7 @@ enum Snapshot {
         case "note": .note
         case "volume": .volume
         case "folder": .folder(URL.downloadsDirectory)
+        case "applications": .folder(URL(filePath: "/Applications"))
         default: nil
         }
     }
@@ -84,7 +85,7 @@ enum HoverBench {
             AppsRowView.stats = (0, 0, 0)
             let start = Date()
             var steps = 0
-            for x in stride(from: 0, to: Double(model.barWidth), by: 12) {
+            for x in stride(from: 0, to: Double(model.barLength), by: 12) {
                 model.appsRowView?.simulatedPointer = x
                 steps += 1
                 try? await Task.sleep(for: .milliseconds(16))

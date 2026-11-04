@@ -13,7 +13,11 @@ struct StacksRow: View {
         "/System/Library/CoreServices/CoreTypes.bundle/Contents/Resources/FullTrashIcon.icns") ?? trashIcon
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: DockMetrics.stackSpacing) {
+        let itemStack = model.edge.stack(spacing: DockMetrics.stackSpacing)
+        itemStack {
+            ForEach(model.badges.minimized) { window in
+                MinimizedIcon(window: window, size: model.iconSize, model: model)
+            }
             ForEach(model.settings.stackFolders, id: \.self) { path in
                 StackIcon(url: URL(filePath: path), size: model.iconSize, model: model)
             }
@@ -46,20 +50,48 @@ struct StacksRow: View {
     }
 }
 
+/// Minimiertes Fenster: Fenster-Symbol mit dem Icon der App. Ein Vorschaubild bräuchte die
+/// Bildschirmaufnahme-Freigabe.
+struct MinimizedIcon: View {
+    let window: MinimizedWindow
+    let size: CGFloat
+    let model: DockModel
+
+    var body: some View {
+        Button { model.badges.restore(window) } label: {
+            ZStack(alignment: .bottomTrailing) {
+                Image(systemName: "macwindow")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: size, height: size)
+                if let appURL = window.appURL {
+                    Image(nsImage: NSWorkspace.shared.icon(forFile: appURL.path)).resizable().interpolation(.high)
+                        .frame(width: size * DockMetrics.minimizedBadgeShare, height: size * DockMetrics.minimizedBadgeShare)
+                }
+            }
+        }
+        .buttonStyle(DockPressStyle())
+        .accessibilityLabel(window.title)
+        .help(window.title)
+    }
+}
+
 struct StackIcon: View {
     let url: URL
     let size: CGFloat
     let model: DockModel
-    @State private var midX: CGFloat = 0
+    @State private var anchor: CGFloat = 0
     @State private var isTargeted = false
 
     var body: some View {
-        Button { model.onToggleCard?(.folder(url), midX) } label: {
+        let vertical = model.edge.isVertical
+        Button { model.onToggleCard?(.folder(url), anchor) } label: {
             Image(nsImage: NSWorkspace.shared.icon(forFile: url.path)).resizable().interpolation(.high)
                 .frame(width: size, height: size)
         }
         .buttonStyle(DockPressStyle())
-        .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).midX } action: { midX = $0 }
+        .onGeometryChange(for: CGFloat.self) { vertical ? $0.frame(in: .global).midY : $0.frame(in: .global).midX } action: { anchor = $0 }
         .scaleEffect(isTargeted ? DockMetrics.dropTargetScale : 1, anchor: .bottom)
         .animation(.snappy(duration: 0.15), value: isTargeted)
         // Dateien auf den Stapel ziehen legt sie in den Ordner (wie im macOS-Dock).
@@ -76,7 +108,7 @@ struct StackIcon: View {
     }
 }
 
-/// Neueste Einträge eines Ordners für die Stapel-Karte.
+/// Einträge eines Ordners für die Stapel-Karte: Programme nach Name, sonst die neuesten zuerst.
 nonisolated enum FolderListing {
     struct Item: Identifiable, Equatable, Sendable {
         let url: URL
@@ -84,16 +116,26 @@ nonisolated enum FolderListing {
         var id: URL { url }
     }
 
-    static let limit = 15
+    static let limit = 500
+
+    /// Überwiegen Programme, zeigt die Karte ein Raster wie das macOS-Dock.
+    static func holdsApps(_ urls: [URL]) -> Bool {
+        !urls.isEmpty && urls.filter { $0.pathExtension == "app" }.count * 2 >= urls.count
+    }
+
+    /// Anzeigename, wie im Finder (ohne `.app`).
+    static func displayName(_ url: URL) -> String {
+        FileManager.default.displayName(atPath: url.path).replacingOccurrences(of: ".app", with: "")
+    }
 
     nonisolated static func recent(in folder: URL) -> [Item]? {
         let keys: [URLResourceKey] = [.contentModificationDateKey]
         guard let urls = try? FileManager.default.contentsOfDirectory(
             at: folder, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]) else { return nil }
-        return urls
-            .map { Item(url: $0, modified: (try? $0.resourceValues(forKeys: Set(keys)).contentModificationDate) ?? .distantPast) }
-            .sorted { $0.modified > $1.modified }
-            .prefix(limit)
-            .map { $0 }
+        let items = urls.map { Item(url: $0, modified: (try? $0.resourceValues(forKeys: Set(keys)).contentModificationDate) ?? .distantPast) }
+        let sorted = holdsApps(urls)
+            ? items.sorted { displayName($0.url).localizedStandardCompare(displayName($1.url)) == .orderedAscending }
+            : items.sorted { $0.modified > $1.modified }
+        return Array(sorted.prefix(limit))
     }
 }

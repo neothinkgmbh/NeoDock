@@ -19,12 +19,14 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   - `FileMemo` Ergebnis je Datei, gültig solange Größe und Änderungszeit gleich sind: Die Quellen laufen alle 2 s, unveränderte Dateien kosten nur ein `stat`.
 - `Sources/NeoDock/` die App:
   - `Dock/DockPanel.swift` Panel (rahmenlos, nicht aktivierend, Ebene über dem Systemdock, alle Spaces) + `DockController`.
+    Position `DockEdge` (unten/links/rechts): `barLength` läuft entlang der Leiste, `barDepth`/`panelDepth` quer dazu.
+    `AppsRowView` rechnet in der Hauptachse m und setzt sie erst in `rect`, `iconPosition`, `dotPosition` um.
   - `Dock/DockRootView.swift` Leiste: Apps | Trenner | Widgets auf einer Glasfläche.
   - `Dock/CardController.swift` aufgeklappte Widget-Karte als eigenes Panel.
   - `Widgets/` Kacheln (Klick = schnelle Aktion, Halten = Karte): `WidgetView` je `WidgetKind`, `Cards.swift`
     je `CardKind`, Seiten-Umschalter in `WidgetTile.swift`. Widgets: Sitzungen, Uhr, Fokus, Kalender, Rechner,
     Zwischenablage, Farbwähler, Passwort, Notiz, Lautstärke, Speicher, Wach halten, Akku.
-  - `Dock/StacksRow.swift` Ordner-Stapel (Ordner per Ziehen ablegen, Rechtsklick entfernt) + Papierkorb.
+  - `Dock/StacksRow.swift` minimierte Fenster (aus dem Dock-Durchlauf von `BadgeMonitor`), Ordner-Stapel (Ordner per Ziehen ablegen, Rechtsklick entfernt) + Papierkorb.
   - `Settings/` `DockSettings` (UserDefaults: Widgets/Reihenfolge, Größe, Vergrößerung, angeheftete Apps, Stapel)
     und das Einstellungsfenster. Angeheftete Apps und Stapel werden beim ersten Start aus `com.apple.dock` übernommen (nur gelesen).
   - `System/` Apps (angeheftete aus `com.apple.dock` nur gelesen + laufende), Prozessbaum (sysctl/libproc),
@@ -43,6 +45,9 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   wenn niemand am Rechner tippt. Grenze: Liquid Glass und vibrante Flächen zeichnet erst der
   Window-Server — sie fehlen im Snapshot; Glas nur am echten Bildschirm beurteilen.
 - Geometrie: Fenstergrenzen über `CGWindowListCopyWindowInfo` (geht ohne Bildschirmaufnahme-Recht).
+- Position prüfen ohne Einstellung zu schreiben: Binary mit `-dockEdge left` starten. Bei Leiste links zeigt der Snapshot
+  die App-Reihe zusätzlich doppelt groß: Das ist ein Fehler von `Snapshot.write`, nicht vom Fenster.
+- Automatisch geprüft wird nur die Logik; ein Umbau an der Leiste unten gehört per Pixelvergleich alter/neuer Snapshot belegt.
 
 ## Regeln
 

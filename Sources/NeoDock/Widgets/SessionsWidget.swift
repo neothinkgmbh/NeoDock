@@ -8,14 +8,16 @@ struct SessionsWidget: View {
     let hold: (CGFloat) -> Void
     /// Klick ohne wartende Sitzung: Liste umschalten (zweiter Klick schließt).
     let toggle: (CGFloat) -> Void
+    @Environment(DockModel.self) private var model: DockModel?
 
     var body: some View {
+        let toolStack = model?.edge.isVertical == true ? AnyLayout(VStackLayout(spacing: Space.sm)) : AnyLayout(HStackLayout(spacing: Space.sm))
         // Nur Symbole — je Tool sein App-Icon mit Zahl der Sitzungen; die Farbe der Zahl zeigt den
         // dringendsten Zustand. Spart Platz; Details zeigt die Liste (Klick ohne Wartende / Halten).
         WidgetTile(caption: nil, hold: hold, tapAt: tap,
                    tint: store.needsYou.isEmpty ? (store.working.isEmpty ? .gray : .green) : .orange,
                    isActive: !store.needsYou.isEmpty) {
-            HStack(spacing: Space.sm) {
+            toolStack {
                 if store.sessions.isEmpty {
                     Image(systemName: "moon.zzz.fill").foregroundStyle(.secondary)
                 } else {

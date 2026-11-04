@@ -53,6 +53,21 @@ nonisolated enum GlassStyle: String, CaseIterable, Identifiable, Sendable {
     var title: String { self == .clear ? "Klar (mehr Liquid Glass)" : "Normal" }
 }
 
+/// Bildschirmkante, an der die Leiste steht.
+nonisolated enum DockEdge: String, CaseIterable, Identifiable, Sendable {
+    case bottom, left, right
+
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .bottom: "Unten"
+        case .left: "Links"
+        case .right: "Rechts"
+        }
+    }
+    var isVertical: Bool { self != .bottom }
+}
+
 /// Darstellung der Widgets: nur das Gesicht (Symbol) oder mit Wert und Beschriftung daneben.
 nonisolated enum WidgetStyle: String, CaseIterable, Identifiable, Sendable {
     case iconOnly, withText
@@ -105,6 +120,7 @@ final class DockSettings {
     var widgetWidth: WidgetWidth { didSet { save(widgetWidth.rawValue, "widgetWidth") } }
     var widgetStyle: WidgetStyle { didSet { save(widgetStyle.rawValue, "widgetStyle") } }
     var glassStyle: GlassStyle { didSet { save(glassStyle.rawValue, "glassStyle") } }
+    var dockEdge: DockEdge { didSet { save(dockEdge.rawValue, "dockEdge") } }
     /// Eigene Leiste nur zeigen, wenn der Zeiger an den unteren Rand fährt.
     var autohide: Bool { didSet { save(autohide, "autohide") } }
     /// macOS-Dock ausblenden, solange NeoDock läuft (mit Wiederherstellung).
@@ -140,6 +156,7 @@ final class DockSettings {
         widgetWidth = defaults.string(forKey: "widgetWidth").flatMap(WidgetWidth.init(rawValue:)) ?? .automatic
         widgetStyle = defaults.string(forKey: "widgetStyle").flatMap(WidgetStyle.init(rawValue:)) ?? .iconOnly
         glassStyle = defaults.string(forKey: "glassStyle").flatMap(GlassStyle.init(rawValue:)) ?? .clear
+        dockEdge = defaults.string(forKey: "dockEdge").flatMap(DockEdge.init(rawValue:)) ?? .bottom
         autohide = defaults.object(forKey: "autohide") as? Bool ?? false
         hideSystemDock = defaults.object(forKey: "hideSystemDock") as? Bool ?? false
         calendarHours = defaults.object(forKey: "calendarHours") as? Int ?? 36

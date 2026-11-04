@@ -49,11 +49,12 @@ final class DockModel {
     @ObservationIgnored weak var appsRowView: AppsRowView?
     /// Apps mit Icon in der Leiste, die Aufmerksamkeit wollen. Apps ohne Icon zählen nicht.
     var attentionKeys: Set<String> { attention.keys.intersection(apps.apps.map(\.key)) }
-    /// Breite der Leiste in Ruhe (ohne Vergrößerung), vom Layout gemessen.
-    var barWidth: CGFloat = 0
+    var edge: DockEdge { settings.dockEdge }
+    /// Länge der Leiste in Ruhe (ohne Vergrößerung), vom Layout gemessen: Breite unten, Höhe an der Seite.
+    var barLength: CGFloat = 0
     /// Icongröße der App-Reihe; schrumpft, wenn die Leiste sonst breiter als der Bildschirm wäre.
     var iconSize: CGFloat
-    /// Icongröße, mit der `barWidth` gemessen wurde.
+    /// Icongröße, mit der `barLength` gemessen wurde.
     @ObservationIgnored var measuredIcon: CGFloat = 0
     var widgetPage = 0
     var battery: BatteryStatus? = Battery.read()
@@ -83,11 +84,11 @@ final class DockModel {
 
     /// Widgets schrumpfen mit den Icons (kleiner Bildschirm), wachsen aber nicht über ihre Normalgröße.
     var widgetScale: CGFloat { min(1, max(DockMetrics.minWidgetScale, iconSize / DockMetrics.icon)) }
-    var barHeight: CGFloat { max(iconSize, DockMetrics.icon * widgetScale) + DockMetrics.padding * 2 }
-    /// Platz über der Leiste für vergrößerte Icons und ihr Namensschild.
-    var panelHeight: CGFloat {
-        barHeight + iconSize * CGFloat(settings.effectiveScale - 1) + DockMetrics.labelRoom
-    }
+    var barDepth: CGFloat { max(iconSize, DockMetrics.icon * widgetScale) + DockMetrics.padding * 2 }
+    /// Maß quer zur Leiste: Reichweite vergrößerter Icons, ohne ihr Namensschild.
+    var iconReach: CGFloat { barDepth + iconSize * CGFloat(settings.effectiveScale - 1) }
+    /// Tiefe des Fensters: die Leiste plus Platz für vergrößerte Icons und ihr Namensschild.
+    var panelDepth: CGFloat { iconReach + (edge.isVertical ? DockMetrics.sideLabelRoom : DockMetrics.labelRoom) }
 
     /// Angezeigte Widgets, in Seiten aufgeteilt; Widgets ohne Datenquelle fallen weg.
     var pages: [[WidgetKind]] {

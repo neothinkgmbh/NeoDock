@@ -36,12 +36,21 @@ nonisolated enum DockMetrics {
     static let runDot: CGFloat = 4
     /// Platz über vergrößerten Icons für das Namensschild.
     static let labelRoom: CGFloat = 32
+    /// Dasselbe für die Leiste an der Seite: Das Schild steht neben dem Icon und ist breiter als hoch.
+    static let sideLabelRoom: CGFloat = 180
     /// Größte zusätzliche Breite der vergrößerten Reihe, in Icon-Wachstum (Glocke über ~5 Icons).
     static let reserveIcons: CGFloat = 4
     static let pagerWidth: CGFloat = 28
     static let stackSpacing: CGFloat = 8
+    static let minimizedBadgeShare: CGFloat = 0.55
     static let cardWidth: CGFloat = 360
     static let cardMaxHeight: CGFloat = 440
+    /// Liste und Raster der Stapel-Karte; alles darüber wird gescrollt.
+    static let folderContentMaxHeight: CGFloat = 320
+    static let folderRowHeight: CGFloat = 36
+    static let folderGridColumns = 4
+    static let folderCellHeight: CGFloat = 84
+    static let folderGridIcon: CGFloat = 48
     static let longPress: Double = 0.4
     static let pollInterval: Duration = .seconds(2)
     static let batteryInterval: Duration = .seconds(60)
