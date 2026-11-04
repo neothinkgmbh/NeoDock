@@ -49,14 +49,20 @@ final class SystemDockHider {
         run(SystemDockGuard.hideCommands() + ["/usr/bin/killall Dock"])
     }
 
-    /// Pipe schließen: der Wächter stellt die Originale her und startet das Dock neu.
+    /// Pipe schließen: der Wächter stellt die Originale her und startet das Dock neu. Ist er selbst
+    /// schon tot, tut das niemand mehr: dann hier nachholen, bevor die Sicherung gelöscht wird.
     func disable() {
         guard let pipe else { return }
+        let hadWatchdog = isActive
         try? pipe.fileHandleForWriting.close()
         watchdog?.waitUntilExit()
         watchdog = nil
         self.pipe = nil
-        defaults.removeObject(forKey: Self.pendingKey)
+        if hadWatchdog {
+            defaults.removeObject(forKey: Self.pendingKey)
+        } else {
+            recoverIfNeeded()
+        }
     }
 
     private func run(_ commands: [String]) {

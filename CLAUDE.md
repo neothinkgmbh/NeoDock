@@ -60,7 +60,8 @@ Vorbild für Bedienung und Verhalten: das macOS-Dock.
   Dock-Neustart, der Wächter gibt sie mit `NeoDock --release-dock-area` frei. Das Dock überschreibt sie bei App-Starts,
   deshalb der 1-s-Takt. An der Seite geht es nicht: AppKit zieht immer unten ab, in allen Varianten gemessen.
 - Die Fläche wirkt nur auf neu gestartete Apps: Laufende speichern `visibleFrame` zwischen, das Signal zum Neulesen sendet allein
-  das macOS-Dock. Darum `WindowGuard` (AXObserver je App): Wächst ein Fenster in die Leiste, wird es gekürzt. Ein Zoom-Test
+  das macOS-Dock: Auch `SLSSetDockRectWithOrientation` mit Ausrichtung 2 weckt von außen niemanden (gemessen).
+  Darum `WindowGuard` (AXObserver je App): Wächst ein Fenster in die Leiste, wird es gekürzt. Ein Zoom-Test
   taugt nur mit einer App, die schon vor der Reservierung lief.
   Der Druck auf `AXZoomButton` löst Vollbild aus, nicht Zoom. Zoomen per `set zoomed of window 1 to true` (Mail) oder `NSWindow.zoom`.
   `pgrep -f …/NeoDock` trifft auch das Wächter-Skript, also `pgrep -x NeoDock`.

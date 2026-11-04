@@ -61,7 +61,7 @@ final class DockController {
         model.onEditWidgets = { [weak self] in self?.openSettings(tab: .widgets) }
         model.onSystemDockSettingChanged = { [weak self] in self?.applySystemDockSetting() }
         model.panelFrame = { [weak self] in self?.panel.frame ?? .zero }
-        systemDock.recoverIfNeeded()
+        if !Snapshot.isRequested { systemDock.recoverIfNeeded() }
         applySystemDockSetting()
         installMouseMonitors()
         model.start()
@@ -208,7 +208,16 @@ final class DockController {
     // MARK: Systemdock
 
     func applySystemDockSetting() {
-        if settings.hideSystemDock { systemDock.enable() } else { systemDock.disable() }
+        guard !Snapshot.isRequested else { return }
+        if settings.hideSystemDock {
+            systemDock.enable()
+        } else {
+            // Vor `disable`: Der Wächter gibt die Fläche frei, der Takt darf sie nicht zurückholen.
+            windowGuard.stop()
+            reservation.stop()
+            systemDock.disable()
+        }
+        scheduleLayout()
     }
 
     /// Beim regulären Beenden: Pipe schließen, der Wächter stellt das Dock wieder her.

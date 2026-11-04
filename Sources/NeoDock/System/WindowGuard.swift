@@ -35,8 +35,16 @@ final class WindowGuard {
                 let pid = (note.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication)?.processIdentifier
                 MainActor.assumeIsolated { if let pid { self?.forget(pid) } }
             },
+            // Fenster anderer Spaces sind erst erreichbar, wenn der Space sichtbar ist.
+            center.addObserver(forName: NSWorkspace.activeSpaceDidChangeNotification, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.fitOpenWindows() }
+            },
         ]
-        WindowFitter.fit(above: area, screen: screen)
+        fitOpenWindows()
+    }
+
+    private func fitOpenWindows() {
+        if let area { WindowFitter.fit(above: area, screen: screen) }
     }
 
     func stop() {

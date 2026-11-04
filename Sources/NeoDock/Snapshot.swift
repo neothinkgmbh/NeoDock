@@ -38,6 +38,9 @@ enum Snapshot {
         view.subviews.flatMap { ($0 as? AppsRowView).map { [$0] } ?? rowViews(in: $0) }
     }
 
+    /// Eine Instanz für Prüfbilder fasst weder das macOS-Dock noch fremde Fenster an.
+    static let isRequested = ProcessInfo.processInfo.environment["NEODOCK_SNAPSHOT"] != nil
+
     static func card(named name: String) -> CardKind? {
         switch name {
         case "sessions": .sessions
