@@ -62,15 +62,19 @@ public enum ClaudeTranscript {
     private static let questions = FileMemo<Bool>()
 
     public static func endsWithQuestion(url: URL) -> Bool {
-        questions.value(for: url) { readEndsWithQuestion(url: url) }
+        questions.value(for: url) { readEndsWithQuestion(url: url) } ?? false
     }
 
-    private static func readEndsWithQuestion(url: URL) -> Bool {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return false }
+    private static func readEndsWithQuestion(url: URL) -> Bool? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
-        let size = (try? handle.seekToEnd()) ?? 0
-        try? handle.seek(toOffset: size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0)
-        let text = String(decoding: (try? handle.readToEnd()) ?? Data(), as: UTF8.self)
-        return endsWithQuestion(lines: text.split(separator: "\n"))
+        do {
+            let size = try handle.seekToEnd()
+            try handle.seek(toOffset: size > UInt64(tailBytes) ? size - UInt64(tailBytes) : 0)
+            let text = String(decoding: try handle.readToEnd() ?? Data(), as: UTF8.self)
+            return endsWithQuestion(lines: text.split(separator: "\n"))
+        } catch {
+            return nil
+        }
     }
 }

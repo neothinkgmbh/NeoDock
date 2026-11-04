@@ -402,7 +402,10 @@ final class AppsRowView: NSView, NSDraggingSource {
         let item = NSPasteboardItem()
         item.setString(app.url.path, forType: NSPasteboard.PasteboardType(UTType.neoDockItem.identifier))
         let dragging = NSDraggingItem(pasteboardWriter: item)
-        dragging.setDraggingFrame(visibleFrames[index], contents: app.icon)
+        // Ein Icon im Sprung steht nicht an seiner Modell-Position.
+        var frame = visibleFrames[index]
+        frame.origin.y = iconLayers[index].presentation()?.position.y ?? 0
+        dragging.setDraggingFrame(frame, contents: app.icon)
         draggedKey = app.key
         pressedIndex = nil
         model?.apps.setDragging(app)

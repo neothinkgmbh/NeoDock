@@ -13,7 +13,7 @@ public struct ClaudeDesktopSessionSource: Sendable {
     let appSupport: URL
     let home: String
     public var visibleWindow: TimeInterval = 3 * 3600
-    private let entries = FileMemo<Entry?>()
+    private let entries = FileMemo<Entry>()
     /// Transkript bzw. letzte Aktivität so frisch: die Sitzung arbeitet.
     public static let activeWindow: TimeInterval = 120
 

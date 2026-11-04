@@ -29,7 +29,7 @@ public struct CodexSessionSource: Sendable {
         let since = Int64((now.timeIntervalSince1970 - visibleWindow) * 1000)
         return rows(updatedSinceMs: since).map { row in
             let url = URL(filePath: row.rolloutPath)
-            let tail = Self.tails.value(for: url) { CodexRollout.readTail(url: url) }
+            let tail = Self.tails.value(for: url) { CodexRollout.readTail(url: url) } ?? .empty
             let lastWrite = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
                 ?? Date(timeIntervalSince1970: Double(row.updatedMs) / 1000)
             let (state, detail) = Self.state(tail: tail, lastWrite: lastWrite, now: now)

@@ -104,7 +104,7 @@ import Testing
         let filler = String(repeating: line("event_msg", #"{"type":"token_count"}"#) + "\n", count: 4000)
         try (line("event_msg", #"{"type":"task_started"}"#) + "\n" + filler).write(to: url, atomically: true, encoding: .utf8)
         #expect(filler.utf8.count > 65_536)
-        #expect(CodexRollout.readTail(url: url).lastTask == .started)
+        #expect(CodexRollout.readTail(url: url)?.lastTask == .started)
     }
 
     @Test("Originator aus der ersten Rollout-Zeile")
@@ -125,6 +125,15 @@ import Testing
         #expect(CodexHost(originator: originator, source: "vscode") == expected)
     }
 
+    @Test("nicht lesbare Datei meldet nil statt eines leeren Stands")
+    func unreadable() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "rollout-\(UUID().uuidString).jsonl")
+        try Data("{}".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        #expect(CodexRollout.readTail(url: url) == nil)
+    }
+
     @Test("readTail liest nur das Ende einer großen Datei")
     func readTail() throws {
         let url = FileManager.default.temporaryDirectory.appending(path: "rollout-\(UUID()).jsonl")
@@ -132,6 +141,6 @@ import Testing
         let filler = String(repeating: line("event_msg", #"{"type":"token_count"}"#) + "\n", count: 2000)
         try (line("event_msg", #"{"type":"task_complete"}"#) + "\n" + filler
              + line("event_msg", #"{"type":"task_started"}"#) + "\n").write(to: url, atomically: true, encoding: .utf8)
-        #expect(CodexRollout.readTail(url: url, firstChunk: 4096).lastTask == .started)
+        #expect(CodexRollout.readTail(url: url, firstChunk: 4096)?.lastTask == .started)
     }
 }

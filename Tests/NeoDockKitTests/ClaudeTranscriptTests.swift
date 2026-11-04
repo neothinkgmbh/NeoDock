@@ -1,3 +1,4 @@
+import Foundation
 import Testing
 @testable import NeoDockKit
 
@@ -7,6 +8,17 @@ import Testing
     func text(_ t: String) -> String { #"{"type":"text","text":"\#(t)"}"# }
     let toolResult = #"{"type":"user","message":{"role":"user","content":[{"type":"tool_result"}]}}"#
     let human = #"{"type":"user","message":{"role":"user","content":"ja, mach"}}"#
+
+    @Test("ein Lesefehler bleibt nicht hängen: Eine wartende Sitzung schreibt nichts mehr, die Datei ändert sich also nicht")
+    func readFailureIsNotRemembered() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "transcript-\(UUID().uuidString).jsonl")
+        try Data(assistant(text("Soll ich deployen?")).utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: url.path)
+        #expect(!ClaudeTranscript.endsWithQuestion(url: url))
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        #expect(ClaudeTranscript.endsWithQuestion(url: url))
+    }
 
     @Test("Frage am Zugende wartet auf den Menschen — auch mit Markdown dahinter")
     func question() {

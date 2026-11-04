@@ -35,6 +35,14 @@ import Testing
         #expect(memo.value(for: url) { 2 } == 2)
     }
 
+    @Test func lesefehlerWirdNichtGemerkt() throws {
+        try Data("a".utf8).write(to: url)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let memo = FileMemo<Int>()
+        #expect(memo.value(for: url) { nil } == nil)
+        #expect(memo.value(for: url) { 2 } == 2)
+    }
+
     @Test func fehlendeDateiWirdNichtGemerkt() {
         let memo = FileMemo<Int>()
         #expect(memo.value(for: url) { 1 } == 1)

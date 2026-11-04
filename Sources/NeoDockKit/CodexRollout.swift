@@ -98,17 +98,22 @@ public enum CodexRollout {
 
     /// Liest von hinten in wachsenden Blöcken, bis ein Task-Event dabei ist oder die Obergrenze
     /// erreicht ist: lange Turns schreiben nach task_started oft Megabytes.
-    public static func readTail(url: URL, firstChunk: Int = 65_536, limit: Int = 16 << 20) -> Tail {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return .empty }
+    /// `nil` heißt Lesefehler.
+    public static func readTail(url: URL, firstChunk: Int = 65_536, limit: Int = 16 << 20) -> Tail? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
-        let size = Int((try? handle.seekToEnd()) ?? 0)
-        var chunk = min(firstChunk, size)
-        while true {
-            try? handle.seek(toOffset: UInt64(size - chunk))
-            let data = (try? handle.read(upToCount: chunk)) ?? Data()
-            let tail = parse(rawLines: data.split(separator: UInt8(ascii: "\n")))
-            if tail.lastTask != nil || chunk >= size || chunk >= limit { return tail }
-            chunk = min(chunk * 4, size, limit)
+        do {
+            let size = Int(try handle.seekToEnd())
+            var chunk = min(firstChunk, size)
+            while true {
+                try handle.seek(toOffset: UInt64(size - chunk))
+                let data = try handle.read(upToCount: chunk) ?? Data()
+                let tail = parse(rawLines: data.split(separator: UInt8(ascii: "\n")))
+                if tail.lastTask != nil || chunk >= size || chunk >= limit { return tail }
+                chunk = min(chunk * 4, size, limit)
+            }
+        } catch {
+            return nil
         }
     }
 
