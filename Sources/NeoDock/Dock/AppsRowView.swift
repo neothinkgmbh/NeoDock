@@ -54,8 +54,8 @@ final class AppsRowView: NSView, NSDraggingSource {
     /// Prüfschalter NEODOCK_LOG_BOUNCE=1: protokolliert die echte Hubhöhe je Bild.
     private static let logsBounce = ProcessInfo.processInfo.environment["NEODOCK_LOG_BOUNCE"] == "1"
     private let nameTag = NameTagView()
-    /// Eigenes Fenster fürs Schild, das keine Maus sieht: Sichtbare Pixel der Leiste fingen sonst den
-    /// Klick ab, auch wenn die View ihn ablehnt, und das Fenster darunter bekäme ihn nicht.
+    /// Eigenes Fenster fürs Schild, das keine Maus sieht: Als sichtbare Pixel der Leiste finge es den
+    /// Klick ab, und das Fenster darunter bekäme ihn nicht.
     private let nameTagPanel = DockPanel(level: DockPanel.dockLevel)
     private var nameTagSize: NSSize = .zero
 
@@ -422,14 +422,6 @@ final class AppsRowView: NSView, NSDraggingSource {
         let gap = -DockMetrics.iconSpacing / 2
         return hitFrames.firstIndex { $0.insetBy(dx: edge.isVertical ? 0 : gap, dy: edge.isVertical ? gap : 0).contains(point) }
     }
-
-    func hasIcon(atScreen point: NSPoint) -> Bool {
-        guard let window else { return false }
-        return iconIndex(at: convert(window.convertPoint(fromScreen: point), from: nil)) != nil
-    }
-
-    /// Das Fenster sah die Maus bis eben nicht, die Tracking-Area hat also nichts gemeldet.
-    func pointerEntered() { startLink() }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
