@@ -44,6 +44,8 @@ final class DockController {
     /// Bei Autohide: ist die Leiste gerade sichtbar?
     private var isRevealed = false
     private var hideTask: Task<Void, Never>?
+    /// Die verborgene Leiste läge auf einem Nachbarmonitor.
+    private var coversNeighbour = false
     private var isLayoutScheduled = false
 
     func show() {
@@ -117,9 +119,9 @@ final class DockController {
         }
         updateReservation(on: screen)
         // Hinter der Kante kann ein weiterer Monitor liegen: Dort stünde die verborgene Leiste sichtbar.
-        let coversNeighbour = !shown && NSScreen.screens.contains { $0 != screen && $0.frame.intersects(frame) }
+        coversNeighbour = !shown && NSScreen.screens.contains { $0 != screen && $0.frame.intersects(frame) }
         let alpha: CGFloat = coversNeighbour ? 0 : 1
-        panel.ignoresMouseEvents = coversNeighbour
+        updateMouseAcceptance()
         guard frame != panel.frame else {
             panel.alphaValue = alpha
             return
@@ -167,7 +169,28 @@ final class DockController {
 
     private var hadAttention = false
 
+    /// Das Fenster reicht für Vergrößerung und Hüpfen über die Leiste hinaus und schluckt dort jeden
+    /// Klick, auch wenn keine View ihn will. Es nimmt die Maus deshalb nur an, wo wirklich etwas ist.
+    private func updateMouseAcceptance() {
+        let location = NSEvent.mouseLocation
+        let accepts = !coversNeighbour && (barArea.contains(location) || model.appsRowView?.hasIcon(atScreen: location) == true)
+        guard accepts == panel.ignoresMouseEvents else { return }
+        panel.ignoresMouseEvents = !accepts
+        if accepts { model.appsRowView?.pointerEntered() }
+    }
+
+    /// Die Glasfläche in Bildschirmkoordinaten, mit der Zusatzlänge der Vergrößerung.
+    private var barArea: CGRect {
+        let frame = panel.frame, depth = model.barDepth, length = model.barLength + model.magnify.extra
+        return switch settings.dockEdge {
+        case .bottom: CGRect(x: frame.midX - length / 2, y: frame.minY, width: length, height: depth)
+        case .left: CGRect(x: frame.minX, y: frame.midY - length / 2, width: depth, height: length)
+        case .right: CGRect(x: frame.maxX - depth, y: frame.midY - length / 2, width: depth, height: length)
+        }
+    }
+
     private func mouseMoved() {
+        updateMouseAcceptance()
         guard settings.autohide, let screen else { return }
         let location = NSEvent.mouseLocation, bounds = screen.frame
         let edge = settings.dockEdge

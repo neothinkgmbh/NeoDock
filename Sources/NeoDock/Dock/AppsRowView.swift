@@ -54,6 +54,9 @@ final class AppsRowView: NSView, NSDraggingSource {
     /// Prüfschalter NEODOCK_LOG_BOUNCE=1: protokolliert die echte Hubhöhe je Bild.
     private static let logsBounce = ProcessInfo.processInfo.environment["NEODOCK_LOG_BOUNCE"] == "1"
     private let nameTag = NameTagView()
+    /// Eigenes Fenster fürs Schild, das keine Maus sieht: Sichtbare Pixel der Leiste fingen sonst den
+    /// Klick ab, auch wenn die View ihn ablehnt, und das Fenster darunter bekäme ihn nicht.
+    private let nameTagPanel = DockPanel(level: DockPanel.dockLevel)
     private var nameTagSize: NSSize = .zero
 
     /// Bildstatistik für den Prüfschalter: Bilder, verpasste Bilder, längste Arbeit pro Bild.
@@ -64,8 +67,8 @@ final class AppsRowView: NSView, NSDraggingSource {
         wantsLayer = true
         layer?.masksToBounds = false
         registerForDraggedTypes([NSPasteboard.PasteboardType(UTType.neoDockItem.identifier), .fileURL])
-        nameTag.isHidden = true
-        addSubview(nameTag)
+        nameTagPanel.ignoresMouseEvents = true
+        nameTagPanel.contentView = nameTag
         if Self.logsBounce { Task { [weak self] in await self?.logHopHeights() } }
     }
 
@@ -331,8 +334,8 @@ final class AppsRowView: NSView, NSDraggingSource {
     /// Das Schild steht über dem Icon, springt aber nicht mit (wie im macOS-Dock) — sonst stößt es
     /// beim Hüpfen an die Fensterkante und wird abgeschnitten.
     private func updateNameTag(frames: [CGRect], restingTops: [CGFloat]) {
-        guard strength > 0.5, draggedKey == nil, let x = pointer, simulatedPointer != nil || window != nil else {
-            nameTag.isHidden = true
+        guard strength > 0.5, draggedKey == nil, let x = pointer, let window else {
+            nameTagPanel.orderOut(nil)
             return
         }
         // Nächstes Icon zum Zeiger (ohne Lücken), damit das Schild nicht flackert.
@@ -346,12 +349,13 @@ final class AppsRowView: NSView, NSDraggingSource {
         let gap = restingTops[index] + Space.sm
         // An der Seite begrenzt das Fenster die Breite, sehr lange Namen werden gekürzt.
         let width = min(size.width, bounds.width - gap)
-        nameTag.frame = switch edge {
+        let tagFrame = switch edge {
         case .bottom: CGRect(x: frame.midX - size.width / 2, y: gap, width: size.width, height: size.height)
         case .left: CGRect(x: gap, y: frame.midY - size.height / 2, width: width, height: size.height)
         case .right: CGRect(x: bounds.width - gap - width, y: frame.midY - size.height / 2, width: width, height: size.height)
         }
-        nameTag.isHidden = false
+        nameTagPanel.setFrame(window.convertToScreen(convert(tagFrame, to: nil)), display: true)
+        if !nameTagPanel.isVisible { nameTagPanel.orderFrontRegardless() }
     }
 
     // MARK: Hüpfen
@@ -418,6 +422,14 @@ final class AppsRowView: NSView, NSDraggingSource {
         let gap = -DockMetrics.iconSpacing / 2
         return hitFrames.firstIndex { $0.insetBy(dx: edge.isVertical ? 0 : gap, dy: edge.isVertical ? gap : 0).contains(point) }
     }
+
+    func hasIcon(atScreen point: NSPoint) -> Bool {
+        guard let window else { return false }
+        return iconIndex(at: convert(window.convertPoint(fromScreen: point), from: nil)) != nil
+    }
+
+    /// Das Fenster sah die Maus bis eben nicht, die Tracking-Area hat also nichts gemeldet.
+    func pointerEntered() { startLink() }
 
     override func hitTest(_ point: NSPoint) -> NSView? {
         let local = convert(point, from: superview)
